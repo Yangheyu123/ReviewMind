@@ -427,6 +427,47 @@ EMBEDDING_EXTRA_HEADERS={"X-Failover-Enabled":"true"}
 
 注意：`Qwen3-Embedding-8B` 固定输出 1024 维，如从 1536 维模型切换，需要按当前数据库方案重建 pgvector 索引。
 
+### GitHub Bot 集成（Webhook 自动触发 + 多轮辩论）
+
+ReviewMind 支持以 GitHub Bot 形式接入仓库，实现 **PR 自动评审** 与 **人机协作的多轮辩论闭环**。
+
+#### 1. Webhook 配置
+
+在目标仓库的 *Settings → Webhooks → Add webhook* 中：
+
+- **Payload URL**：`https://<你的服务地址>/api/v1/github/webhook`
+- **Content type**：`application/json`
+- **Secret**：与后端 `GITHUB_WEBHOOK_SECRET` 一致（用于校验 `X-Hub-Signature-256`）
+- **触发事件**：勾选 `Issue comments` 与 `Pull requests`
+
+服务端会自动校验签名、按 `X-GitHub-Delivery` 去重，并过滤 Bot 自身评论避免死循环。
+
+#### 2. 自动触发评审
+
+| 触发方式 | 说明 |
+| -------- | ---- |
+| PR 评论 `/review` 或触发词（默认 `@reviewmind review`） | 立即创建审查任务，完成后回写报告评论 |
+| PR `opened` 事件（新建 PR） | 需开启 `GITHUB_AUTO_REVIEW_ON_PR_OPENED=true`，仅对 `opened` 生效；`synchronize`/推送更新不触发，避免频繁刷量 |
+
+受 `GITHUB_ALLOWED_REPOS` 白名单约束（空表示不限）。
+
+#### 3. 命令交互（Issue Comment）
+
+审查完成后，可在该 PR 下评论与 Bot 协作：
+
+| 命令 | 作用 |
+| ---- | ---- |
+| `/review` | 重新触发一次完整审查 |
+| `/explain <finding_id> <异议说明>` | 对某条发现发起辩论：Agent 基于代码上下文与最佳实践**解释**，异议成立时可**下调等级**或**撤销（dismiss）** |
+| `/accept <finding_id>` | 接受该发现，标记为 ✅ 已接受并更新摘要 |
+| `/reject <finding_id>` | 驳回该发现，标记为 ❌ 已驳回并更新摘要 |
+
+`/explain` 的多轮对话会持久化到 `review_conversations` 表，支持基于历史的连续追问；处置结果会更新报告摘要并追加评论。
+
+#### 4. 相关配置项
+
+见 `backend/.env.example` 中 `GITHUB_*` 段：`GITHUB_WEBHOOK_SECRET`、`GITHUB_REVIEW_TRIGGER`、`GITHUB_BOT_LOGIN`、`GITHUB_ALLOWED_REPOS`、`GITHUB_AUTO_REVIEW_ON_PR_OPENED` 等。
+
 ### Agent Loop 冒烟测试
 
 在 `backend/.env` 配置真实可用的 `LLM_API_KEY`，并关闭 mock：
