@@ -186,6 +186,35 @@ class ReviewJobStore:
             await session.commit()
         return self._to_job(model)
 
+    async def save_report(self, job_id: str, report: ReviewReport) -> ReviewJob:
+        """原地写回 report（不改状态机）。
+
+        供 accept/reject/explain 等命令在 job 终态后修改 finding 后持久化使用。
+        """
+        async with async_session() as session:
+            result = await session.execute(
+                select(ReviewJobModel).where(ReviewJobModel.job_id == job_id)
+            )
+            model = result.scalar_one_or_none()
+            if model is None:
+                raise ReviewJobNotFoundError(job_id)
+            model.report = report.model_dump_json()
+            model.updated_at = datetime.now(UTC)
+            await session.commit()
+        return self._to_job(model)
+
+    async def get_latest_job_by_pr_url(self, pr_url: str) -> ReviewJob | None:
+        """按 pr_url 倒序取最近一条 job（命令路由定位 job 用）。"""
+        async with async_session() as session:
+            result = await session.execute(
+                select(ReviewJobModel)
+                .where(ReviewJobModel.pr_url == pr_url)
+                .order_by(ReviewJobModel.created_at.desc())
+                .limit(1)
+            )
+            model = result.scalar_one_or_none()
+        return self._to_job(model) if model is not None else None
+
     def _to_job(self, model: ReviewJobModel) -> ReviewJob:
         """将 ORM 模型转换为领域对象 ReviewJob。"""
         report = None

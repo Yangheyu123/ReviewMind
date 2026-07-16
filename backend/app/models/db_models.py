@@ -69,3 +69,19 @@ class CodeEmbeddingModel(Base):
     )
 
     created_at = Column(DateTime(timezone=True), nullable=False, default=_utcnow)
+
+
+class ReviewConversationModel(Base):
+    """多轮辩论对话历史，按 (job_id, finding_id) 维度追加存储。
+
+    通过 Base.metadata.create_all 自动建表（无需 Alembic 迁移）。
+    """
+
+    __tablename__ = "review_conversations"
+
+    id = Column(Integer, primary_key=True, autoincrement=True)
+    job_id = Column(String(64), nullable=False, index=True)
+    finding_id = Column(String(64), nullable=True, index=True)
+    role = Column(String(16), nullable=False)
+    content = Column(Text, nullable=False)
+    created_at = Column(DateTime(timezone=True), nullable=False, default=_utcnow)

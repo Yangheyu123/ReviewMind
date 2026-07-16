@@ -14,6 +14,8 @@ class Settings(BaseSettings):
     github_allowed_repos: list[str] = []
     github_webhook_result_timeout_seconds: int = 1800
     github_webhook_result_poll_seconds: float = 2.0
+    # PR opened 自动触发评审（仅 opened，synchronize 等更新不触发）；默认关闭，受 allowed_repos 白名单约束。
+    github_auto_review_on_pr_opened: bool = False
 
     llm_api_key: str | None = None
     llm_api_base: str = "https://ai.sxuan.top/v1"

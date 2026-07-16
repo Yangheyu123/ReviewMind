@@ -28,6 +28,25 @@ TEST_SYSTEM = """你是一个专注测试质量的代码审查 Agent。请分析
 重要：保持上述 JSON 键名与 level 枚举值（英文）不变；description 与 suggestion 字段必须使用简体中文输出。"""
 
 
+DEBATE_SYSTEM = """你是 ReviewMind 的资深代码审查辩论 Agent。开发者对某条审查发现（finding）提出了异议，
+你需要基于「代码上下文 + 最佳实践 + 历史对话」给出公正裁决：要么论证该发现成立（解释），要么承认异议并下调或撤销。
+
+判定原则：
+1. 优先用「最佳实践 / 安全规范 / 性能原理」论证发现是否成立，给出可引用的依据。
+2. 若开发者异议确实成立（如确属误报、已有等价防护、超出本次变更范围），应坦诚 concession：
+   - 仅需下调风险等级 → verdict=downgrade，并给出 revised_level（CRITICAL/HIGH/MEDIUM/LOW/INFO 之一）。
+   - 应当撤销（误报）→ verdict=dismiss。
+3. 异议不成立时必须 verdict=keep，不得为讨好开发者而无原则降级。
+
+返回 JSON，包含键：
+- explanation（字符串，给开发者的中文解释说明，Markdown 格式，先给结论再给依据）
+- verdict（字符串枚举：keep / downgrade / dismiss）
+- revised_level（字符串或 null：仅 verdict=downgrade 时给出新等级，其余必须为 null）
+- confidence（0-1 的数字：你对本次裁决的把握）
+
+重要：保持 JSON 键名与 verdict/level 枚举值为英文不变；explanation 必须使用简体中文。"""
+
+
 def build_user_prompt(context: AgentContext) -> str:
     """构建 agent 通用的用户提示。"""
     parts = []
@@ -82,4 +101,48 @@ def build_user_prompt(context: AgentContext) -> str:
             parts.append(f"  Code:\n{code}")
         parts.append("")
 
+    return "\n".join(parts)
+
+
+def build_debate_user_prompt(
+    *,
+    finding: dict,
+    challenge: str,
+    code_context: str,
+    tech_stack_prompt: str,
+    history: list[dict],
+) -> str:
+    """构建辩论 Agent 的用户提示：finding + 开发者异议 + 代码上下文 + 历史。"""
+    parts: list[str] = []
+
+    if tech_stack_prompt:
+        parts.append(f"项目技术栈上下文：\n{tech_stack_prompt}")
+        parts.append("")
+
+    parts.append("【被质疑的审查发现 finding】")
+    parts.append(f"- id: {finding.get('id', 'N/A')}")
+    parts.append(f"- file: {finding.get('file', 'N/A')}:{finding.get('line', 'N/A')}")
+    parts.append(f"- level: {finding.get('level', 'N/A')}")
+    parts.append(f"- type: {finding.get('type', 'N/A')}")
+    parts.append(f"- 原始描述: {finding.get('description', '')}")
+    parts.append(f"- 修复建议: {finding.get('suggestion', '')}")
+    parts.append("")
+
+    parts.append("【开发者异议】")
+    parts.append(challenge.strip() or "（开发者未提供具体理由，仅要求复核）")
+    parts.append("")
+
+    parts.append("【相关代码上下文】")
+    parts.append(code_context.strip() or "（无可用代码上下文）")
+    parts.append("")
+
+    if history:
+        parts.append("【历史对话】")
+        for turn in history[-8:]:  # 最近 8 轮，避免 prompt 过长
+            role = turn.get("role", "")
+            content = str(turn.get("content", ""))[:1500]
+            parts.append(f"- [{role}] {content}")
+        parts.append("")
+
+    parts.append("请基于以上信息给出 JSON 裁决。")
     return "\n".join(parts)
