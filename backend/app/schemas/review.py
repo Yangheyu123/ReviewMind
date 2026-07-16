@@ -13,6 +13,23 @@ class ReviewJobStatus(StrEnum):
     cancelled = "cancelled"
 
 
+class FindingStatus(StrEnum):
+    """单条 finding 的人机协作处置状态。"""
+
+    open = "open"            # 未处置
+    accepted = "accepted"    # 开发者接受该发现
+    rejected = "rejected"    # 开发者驳回该发现
+    dismissed = "dismissed"  # 辩论后被判定为误报并撤销
+
+
+class DebateVerdict(StrEnum):
+    """辩论 Agent 对单条 finding 的裁决。"""
+
+    keep = "keep"              # 维持原结论
+    downgrade = "downgrade"   # 下调风险等级
+    dismiss = "dismiss"       # 撤销（判定为误报）
+
+
 class ReviewConfig(BaseModel):
     enable_ast: bool = True
     enable_rag: bool = False
@@ -44,6 +61,7 @@ class ReviewFinding(BaseModel):
     suggestion: str
     symbol: str | None = None
     code_snippet: str | None = None
+    status: str = Field(default=FindingStatus.open.value, description="人机协作处置状态")
 
 
 class ReviewProgressEvent(BaseModel):
@@ -170,3 +188,32 @@ class MergeResponse(BaseModel):
     message: str
     sha: str | None = None
     html_url: str | None = None
+
+
+# --- 多轮辩论 / 命令交互相关结构 ---
+
+class ConversationRole(StrEnum):
+    """对话轮次的角色。"""
+
+    user = "user"          # 开发者（命令发起方）
+    assistant = "assistant"  # ReviewMind Agent
+    system = "system"
+
+
+class ConversationTurn(BaseModel):
+    """一条对话记录（持久化到 review_conversations 表）。"""
+
+    job_id: str
+    finding_id: str | None = None
+    role: ConversationRole
+    content: str
+    created_at: datetime | None = None
+
+
+class DebateResult(BaseModel):
+    """辩论 Agent 对单次 /explain 的产出。"""
+
+    explanation: str = Field(description="给开发者的解释说明（中文）")
+    verdict: DebateVerdict = Field(default=DebateVerdict.keep, description="裁决：keep/downgrade/dismiss")
+    revised_level: str | None = Field(default=None, description="downgrade 时的新等级，如 LOW/MEDIUM")
+    confidence: float = Field(default=0.5, ge=0.0, le=1.0)
