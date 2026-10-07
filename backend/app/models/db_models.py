@@ -69,3 +69,48 @@ class CodeEmbeddingModel(Base):
     )
 
     created_at = Column(DateTime(timezone=True), nullable=False, default=_utcnow)
+
+class LlmRequestLogModel(Base):
+    """LLM 请求明细（Phase 4 观测）：按 job/组/阶段切片 token 成本与延迟。
+
+    数据来源：core/llm_usage 的 contextvar 记录器（双协议钩子统一埋点）。
+    """
+
+    __tablename__ = "llm_request_logs"
+
+    id = Column(Integer, primary_key=True, autoincrement=True)
+    job_id = Column(String(64), nullable=False, index=True)
+    group = Column(String(64), nullable=False, default="")
+    phase = Column(String(32), nullable=False, default="")
+    model = Column(String(128), nullable=False, default="")
+    protocol = Column(String(16), nullable=False, default="openai")
+    prompt_tokens = Column(Integer, nullable=False, default=0)
+    completion_tokens = Column(Integer, nullable=False, default=0)
+    total_tokens = Column(Integer, nullable=False, default=0)
+    latency_ms = Column(Integer, nullable=False, default=0)
+    status = Column(String(16), nullable=False, default="ok")
+    error = Column(Text, nullable=True)
+    created_at = Column(DateTime(timezone=True), nullable=False, default=_utcnow)
+
+
+class ReviewMemoryModel(Base):
+    """审查记忆（Phase 2.5）：跨任务的历史 findings 积累。
+
+    检索层当前为关键词级（repo + 文件路径匹配 + 词重叠排序）；
+    embedding 额度具备后将 description/existing_code 向量化升级语义检索（接口不变）。
+    """
+
+    __tablename__ = "review_memory"
+
+    id = Column(Integer, primary_key=True, autoincrement=True)
+    repo = Column(String(256), nullable=False, index=True)
+    file = Column(String(1024), nullable=False)
+    line = Column(Integer, nullable=False, default=0)
+    level = Column(String(16), nullable=False, default="INFO")
+    category = Column(String(32), nullable=False, default="other")
+    type_detail = Column(String(256), nullable=True)
+    description = Column(Text, nullable=False)
+    suggestion = Column(Text, nullable=True)
+    existing_code = Column(Text, nullable=True)   # 锚点代码段（回归比对的依据）
+    anchor_status = Column(String(16), nullable=True)
+    created_at = Column(DateTime(timezone=True), nullable=False, default=_utcnow)

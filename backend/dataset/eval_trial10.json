@@ -1,0 +1,1901 @@
+{
+  "config": {
+    "limit": 10,
+    "model": "deepseek-v4.1-flash",
+    "hit_window": 15
+  },
+  "summary": {
+    "A": {
+      "prs": 10,
+      "total_labels": 13,
+      "hit_labels": 9,
+      "hit_rate": 0.6923,
+      "total_findings": 41,
+      "findings_per_pr": 4.1,
+      "hit_findings_rate": 0.1951
+    },
+    "B": {
+      "prs": 10,
+      "total_labels": 13,
+      "hit_labels": 8,
+      "hit_rate": 0.6154,
+      "total_findings": 42,
+      "findings_per_pr": 4.2,
+      "hit_findings_rate": 0.2381
+    },
+    "C": {
+      "prs": 10,
+      "total_labels": 13,
+      "hit_labels": 4,
+      "hit_rate": 0.3077,
+      "total_findings": 23,
+      "findings_per_pr": 2.3,
+      "hit_findings_rate": 0.2609
+    },
+    "D": {
+      "prs": 10,
+      "total_labels": 13,
+      "hit_labels": 4,
+      "hit_rate": 0.3077,
+      "total_findings": 22,
+      "findings_per_pr": 2.2,
+      "hit_findings_rate": 0.1818
+    }
+  },
+  "results": {
+    "A": [
+      {
+        "findings": [
+          {
+            "file": "pydantic-core/src/input/input_python.rs",
+            "line": 477,
+            "level": "HIGH",
+            "type": "correctness",
+            "description": "`lax_ordered_dict` 对于非 dict/Mapping 的映射类对象（如实现了 `keys()`/`__getitem__` 但不继承 Mapping 的自定义对象）会抛出 OrderedDictType 错误，而 `lax_dict` 通常还会接受 `cast::<PyMapping>()` 之外通过 `Mapping` 协议的对象。更重要的是：这里对 StrictDict 的语义处理与字典不一定一致——省略了 `GenericPyMapping::Mapping` 分支之前对 PyMapping 的子类 OrderedDict 判断。但真正的 bug 是：当输入为普通 `dict` 时使用 `cast_exact::<PyDict>()`，dict 子类（非 OrderedDict）会走 `cast::<PyMapping>()` 分支返回 `lax` 而非 `exact`，与 `lax_dict` 对 dict 子类的处理（使用 `cast_exact` 失败后降级）一致，但会丢失“精确 dict”的判定，可能导致下游 fail_fast/round-trip 行为差异。建议与 frozendict/dict 的 lax 实现对齐。",
+            "existing_code": "} else if let Ok(dict) = self.cast_exact::<PyDict>() {\n            Ok(ValidationMatch::lax(GenericPyMapping::Dict(dict)))"
+          },
+          {
+            "file": "pydantic-core/src/input/input_json.rs",
+            "line": 246,
+            "level": "MEDIUM",
+            "type": "correctness",
+            "description": "`strict_ordered_dict` 在 JSON 输入下接受任意 `Object` 并标注为 `strict`。由于 JSON 没有原生 OrderedDict 概念，strict 模式下把 JSON 对象视为 strict 匹配会使 strict 模式对 ordered-dict 失效（与文档“strict 模式下只有 OrderedDict 实例有效”描述冲突，尽管 JSON 无法提供实例）。应返回 `lax` 或不匹配，需明确语义并补充测试。",
+            "existing_code": "JsonValue::Object(dict) => Ok(ValidationMatch::strict(dict)),"
+          },
+          {
+            "file": "pydantic-core/src/input/input_abstract.rs",
+            "line": 151,
+            "level": "MEDIUM",
+            "type": "correctness",
+            "description": "`lax_ordered_dict` 默认实现直接返回 `self.strict_ordered_dict()`，这会让诸如 `StringMapping`(见 input_string.rs) 等未覆写 `lax_ordered_dict` 的输入类型在 lax 模式下拒绝普通字符串键映射（例如 JSON 字符串形式的对象），导致行为不一致。需确认所有 Input 实现是否需要覆写。",
+            "existing_code": "fn lax_ordered_dict(&self) -> ValMatch<Self::Dict<'_>> {\n        self.strict_ordered_dict()\n    }"
+          },
+          {
+            "file": "pydantic-core/src/input/input_string.rs",
+            "line": 187,
+            "level": "HIGH",
+            "type": "correctness",
+            "description": "`StringMapping` 的 `strict_ordered_dict` 只接受 `Mapping` 变体而拒绝字符串变体，但未覆写 `lax_ordered_dict`，因此继承默认实现也会拒绝字符串。对于从 `str` 构造的字符串映射（如 URL 查询字符串）的 lax 解析应被允许，否则 ordered-dict 字段无法从字符串输入宽松解析，与 dict 的行为不一致。",
+            "existing_code": "fn strict_ordered_dict(&self) -> ValMatch<StringMappingDict<'py>> {\n        match self {\n            Self::String(_) => Err(ValError::new(ErrorTypeDefaults::OrderedDictType, self)),"
+          },
+          {
+            "file": "pydantic-core/src/input/input_python.rs",
+            "line": 478,
+            "level": "MEDIUM",
+            "type": "correctness",
+            "description": "`lax_ordered_dict` 使用 `self.cast::<PyMapping>()` 宽松接受任意实现了映射协议的对象，但在 `GenericPyMapping::Mapping` 路径下如果对象仅是普通 dict 子类（非 OrderedDict），会走此分支。然而由于 `self.is_instance(get_ordered_dict_type(...)?)` 已先检查 OrderedDict，普通 dict 会命中 `cast_exact::<PyDict>()` 分支，但 dict 子类不会，导致结果不一致，需补充对 dict 子类的测试。",
+            "existing_code": "} else if let Ok(mapping) = self.cast::<PyMapping>() {\n            Ok(ValidationMatch::lax(GenericPyMapping::Mapping(mapping)))"
+          },
+          {
+            "file": "pydantic-core/src/recursion_guard.rs",
+            "line": 80,
+            "level": "LOW",
+            "type": "maintenance",
+            "description": "将 Windows 上的 GUARD_OFFSET 从 40 提升到 50，属于与 ordered-dict 功能不直接相关的改动。若无明确理由（如新增递归路径确实需要），会掩盖潜在的无限递归/栈溢出问题，且降低了对栈溢出的检测灵敏度，建议说明原因或保留原值。",
+            "existing_code": "} else if cfg!(all(windows, not(PyPy))) {\n-        40\n+        50"
+          },
+          {
+            "file": "docs/plugins/conversion_table.py",
+            "line": 648,
+            "level": "MEDIUM",
+            "type": "testing",
+            "description": "新增的 OrderedDict 转换表行中，Python->Mapping lax 行 `valid_examples=[]` 为空，而该行 `condition` 表示映射协议，可能与 dict 一类一样应提供有效示例，否则转换表检查无法验证该路径实际可用，容易遗漏回归。",
+            "existing_code": "condition='Must implement the mapping interface and have an `items()` method.',\n        valid_examples=[],"
+          },
+          {
+            "file": "pydantic-core/src/common/ordered_dict.rs",
+            "line": 6,
+            "level": "LOW",
+            "type": "performance",
+            "description": "`ORDERED_DICT_TYPE` 使用 `PyOnceLock::import` 每次都会执行 import 解析（尽管有缓存）。与 `frozendict` 的实现对比，如后者有特化处理，需确认 `import` 的语义与缓存行为一致，避免每次校验都产生 import 开销。",
+            "existing_code": "ORDERED_DICT_TYPE.import(py, \"collections\", \"OrderedDict\")"
+          }
+        ],
+        "llm_records": [
+          {
+            "job_id": "eval",
+            "group": "A",
+            "phase": "direct",
+            "model": "deepseek-v4.1-flash",
+            "protocol": "anthropic",
+            "prompt_tokens": 5884,
+            "completion_tokens": 1439,
+            "total_tokens": 7323,
+            "latency_ms": 8585,
+            "status": "ok",
+            "error": ""
+          }
+        ],
+        "repo": "pydantic/pydantic",
+        "pr_number": 13796
+      },
+      {
+        "findings": [],
+        "llm_records": [
+          {
+            "job_id": "eval",
+            "group": "A",
+            "phase": "direct",
+            "model": "deepseek-v4.1-flash",
+            "protocol": "anthropic",
+            "prompt_tokens": 352,
+            "completion_tokens": 10,
+            "total_tokens": 362,
+            "latency_ms": 2022,
+            "status": "ok",
+            "error": ""
+          }
+        ],
+        "repo": "pydantic/pydantic",
+        "pr_number": 13699
+      },
+      {
+        "findings": [
+          {
+            "file": "pydantic/experimental/pipeline.py",
+            "line": 484,
+            "level": "MEDIUM",
+            "type": "correctness",
+            "description": "`_LENGTH_SCHEMA_TYPES` 包含 'generator'，但检查 `validate_as(Iterable[int])` 时生成的 core schema 类型可能是 'generator' 而非 'iterable'。测试 `test_len_constraint_on_generator` 依赖 generator 生成器语义（消费迭代器）来验证长度，但 `check_len` 中的 `len(v)` 对生成器会抛 TypeError。实际上 generator 模式下的 `min_length`/`max_length` 是 pydantic-core 原生支持的，能正确处理迭代器。该问题仅在原生支持确实存在时无害；需确认 pydantic-core 的 'generator' schema 支持 min_length/max_length，否则会 crash。",
+            "existing_code": "_LENGTH_SCHEMA_TYPES = frozenset({'str', 'bytes', 'list', 'tuple', 'set', 'frozenset', 'dict', 'generator'})"
+          },
+          {
+            "file": "pydantic/experimental/pipeline.py",
+            "line": 552,
+            "level": "INFO",
+            "type": "correctness",
+            "description": "将长度约束 refactor 到 else 分支后，原代码中对不满足原生长度约束的类型（如 transform 后的 schema）总是回退到函数检查。这看起来是正确的行为改变（修复），因为原代码对任何 `s['type']` 不在集合内的 schema 都会执行 `s = _check_func(...)`，而现在只在 else 分支执行。逻辑等价且更清晰。无需修改，仅记录。",
+            "existing_code": "            s = _check_func(check_len, predicate_err, s)"
+          },
+          {
+            "file": "pydantic/experimental/pipeline.py",
+            "line": 488,
+            "level": "LOW",
+            "type": "correctness",
+            "description": "`_ORDERING_SCHEMA_TYPES` 加入了 'time'。Python 的 `datetime.time` 不支持与 aware/naive 之外的比较吗？实际上 time 对象支持 <,>,<=,>= 比较（按时分秒微秒），但若带 tzinfo 可能引发 TypeError。此外 pydantic-core 的 'time' schema 是否原生支持 gt/ge/lt/le 需要确认。若 pydantic-core 不支持，设置 `s['gt']` 会导致 schema 构造失败或静默忽略。建议确认 pydantic-core 对 'fraction'、'date'、'time'、'datetime'、'timedelta' 类型 schema 的 gt/ge/lt/le 原生支持。",
+            "existing_code": "_ORDERING_SCHEMA_TYPES = frozenset({'int', 'float', 'decimal', 'fraction', 'date', 'time', 'datetime', 'timedelta'})"
+          },
+          {
+            "file": "tests/test_pipeline.py",
+            "line": 171,
+            "level": "LOW",
+            "type": "test",
+            "description": "测试 `test_len_constraint_on_generator` 使用 `Iterable[int]` 并期望 generator core schema 应用原生 min_length/max_length。由于 `Iterable[int]` 转 generator，`ta.validate_python([1,2,3])` 返回的是 generator/iterator，`list()` 消费它时才触发长度校验。但长度校验需要消费整个迭代器计数，若校验发生在前，返回的迭代器可能已被耗尽或校验逻辑与消费语义冲突。需确认该行为符合预期，且不是依赖 pydantic-core 未文档化的行为。",
+            "existing_code": "def test_len_constraint_on_generator() -> None:\n    ta = TypeAdapter[Iterable[int]](Annotated[Iterable[int], validate_as(Iterable[int]).constrain(Len(2, 3))])"
+          }
+        ],
+        "llm_records": [
+          {
+            "job_id": "eval",
+            "group": "A",
+            "phase": "direct",
+            "model": "deepseek-v4.1-flash",
+            "protocol": "anthropic",
+            "prompt_tokens": 3104,
+            "completion_tokens": 860,
+            "total_tokens": 3964,
+            "latency_ms": 5268,
+            "status": "ok",
+            "error": ""
+          }
+        ],
+        "repo": "pydantic/pydantic",
+        "pr_number": 13659
+      },
+      {
+        "findings": [
+          {
+            "file": "src/anyio/_core/_synchronization.py",
+            "line": 295,
+            "level": "HIGH",
+            "type": "正确性",
+            "description": "`_check_acquired()` 改为调用 `self._lock.statistics().owner`，但底层锁可能不是 anyio 的 Lock 类型（如 Semaphore 或自定义锁），它们可能没有 `statistics()` 方法，会抛出 AttributeError 而非预期的 RuntimeError。原实现使用独立的 `_owner_task` 字段，对任意锁类型都适用。",
+            "existing_code": "if self._lock.statistics().owner != get_current_task():"
+          },
+          {
+            "file": "src/anyio/_core/_synchronization.py",
+            "line": 295,
+            "level": "HIGH",
+            "type": "正确性",
+            "description": "`LockControl`/Lock.statistics() 的 owner 只记录所有者 task，当锁通过 `acquire_nowait()` 或非递归方式获取时可能不准确；更重要的是，若底层锁不是 anyio 的 Lock 而是 Semaphore 等，statistics() 语义不同，可能导致误判持有状态，从而破坏 Condition 的同步保证。",
+            "existing_code": "if self._lock.statistics().owner != get_current_task():"
+          },
+          {
+            "file": "src/anyio/_core/_synchronization.py",
+            "line": 277,
+            "level": "MEDIUM",
+            "type": "正确性",
+            "description": "移除 `_owner_task` 槽位后，`acquire()`/`acquire_nowait()` 不再记录所有者，转而依赖底层锁的 statistics。但若底层锁是通过 `Lock.acquire()` 由同一任务持有，`statistics().owner` 在部分实现（如可重入的 PGI 或 semaphore 后端）可能为 None 或非当前任务，导致 notify 误报“未持有锁”。建议补充跨后端的兼容性验证。",
+            "existing_code": "__slots__ = \"__weakref__\", \"_lock\", \"_waiters\""
+          }
+        ],
+        "llm_records": [
+          {
+            "job_id": "eval",
+            "group": "A",
+            "phase": "direct",
+            "model": "deepseek-v4.1-flash",
+            "protocol": "anthropic",
+            "prompt_tokens": 880,
+            "completion_tokens": 453,
+            "total_tokens": 1333,
+            "latency_ms": 3633,
+            "status": "ok",
+            "error": ""
+          }
+        ],
+        "repo": "agronholm/anyio",
+        "pr_number": 1320
+      },
+      {
+        "findings": [
+          {
+            "file": "src/anyio/_backends/_asyncio.py",
+            "line": 760,
+            "level": "HIGH",
+            "type": "正确性",
+            "description": "在 started() 中，先调用 self._future.set_result(value) 再调用 self._spawn_scope._reparent(self._target_scope)。如果 set_result 唤醒了等待 start() 返回的调用方任务，而该任务的后续执行（例如触发 cancel）可能立即导致 spawn_scope 被取消；顺序上虽无竞态窗口，但更严重的问题是：当 future.done() 为 True 且 cancelled() 为 True 时直接 return，跳过了 _reparent，这会导致任务永远停留在调用方的 cancel scope 中（不会被目标 task group 取消），与文档中“task 应被移入目标 group 的 cancel scope”的语义不一致。",
+            "existing_code": "        if self._future.done():\n            if not self._future.cancelled():\n                raise RuntimeError(\"called 'started' twice on the same task status\")\n            else:\n                # Caller of start() was cancelled, nothing to reparent\n                return"
+          },
+          {
+            "file": "src/anyio/_backends/_asyncio.py",
+            "line": 950,
+            "level": "HIGH",
+            "type": "正确性",
+            "description": "在 _spawn 中，当传入 task_status 时使用 task_status._spawn_scope 作为 initial_scope，并执行 initial_scope._tasks.add(task)。但如果 initial_scope 是调用方的 cancel scope（构造 _AsyncioTaskStatus 时外部传入的初始 scope），而 _AsyncioTaskStatus 构造时并未把该 initial_scope 传给 _spawn 用于 parent_id 分支判断；此外当调用方为 unmanaged task 时 initial_scope 回退为 self.cancel_scope，此时 spawn_scope（由 start() 创建的新 CancelScope）与 initial_scope 不一致，TaskHandle._cancel_scope 与 _task_states 记录的 cancel_scope 不同，任务取消路径可能出现双重管理或遗漏。",
+            "existing_code": "            if caller_state is not None and caller_state.cancel_scope is not None:\n                initial_scope = caller_state.cancel_scope\n            else:\n                # The caller is an unmanaged task (no task state)\n                initial_scope = self.cancel_scope"
+          },
+          {
+            "file": "src/anyio/_backends/_asyncio.py",
+            "line": 996,
+            "level": "MEDIUM",
+            "type": "正确性",
+            "description": "start() 中为 task_status 构造了新的 CancelScope()（spawn_scope），但该 scope 只在任务真正 started() 成功后通过 _reparent 移动到目标 scope；若任务在 started() 之前就结束或异常，这个 spawn_scope 及其父关系可能未被清理，且 _spawn 中 initial_scope._tasks.add(task) 将该任务注册到了 spawn_scope（若 spawn_scope 与 initial_scope 不同则注册到 initial_scope），存在 scope/task 注册不一致的风险。",
+            "existing_code": "        task_status: _AsyncioTaskStatus[Any] = _AsyncioTaskStatus(\n            future, id(self.cancel_scope._host_task), self.cancel_scope, CancelScope()"
+          },
+          {
+            "file": "src/anyio/_core/_tasks.py",
+            "line": 302,
+            "level": "MEDIUM",
+            "type": "性能",
+            "description": "TaskHandle.__init__ 现在允许外部传入 cancel_scope。这使得多个 TaskHandle 可能共享同一 CancelScope 实例（_AsyncioTaskStatus._spawn_scope 与 TaskHandle 共享），若 Handle 上的 cancel() 或作用域清理假设该 scope 独占，则可能出现取消传播范围扩大或 errgroup 语义破坏。需要确认 CancelScope 是否设计为可被多个 TaskHandle 共享。",
+            "existing_code": "        cancel_scope: CancelScope | None = None,\n    ) -> None:\n        from ._synchronization import Event\n\n        self._coro = coro\n        self._cancel_scope = cancel_scope if cancel_scope is not None else CancelScope()"
+          },
+          {
+            "file": "tests/test_taskgroups.py",
+            "line": 1935,
+            "level": "LOW",
+            "type": "测试",
+            "description": "测试中 th = tg.start_soon(outside_task) 后只在断言处 await th.wait()，但 outside_task 在 started 之后进入被取消的路径，pytest.fail 仅在未取消时触发。缺少对 TaskHandle.return_value 在 asyncio 后端下确实被正确设置的验证分支，且在 Trio 后端下该测试可能因 backend 差异行为不同，建议参数化或明确标记后端。",
+            "existing_code": "        th = tg.start_soon(outside_task)\n        await anyio.wait_all_tasks_blocked()\n        inner_tg.cancel()\n        ev.set()"
+          }
+        ],
+        "llm_records": [
+          {
+            "job_id": "eval",
+            "group": "A",
+            "phase": "direct",
+            "model": "deepseek-v4.1-flash",
+            "protocol": "anthropic",
+            "prompt_tokens": 2753,
+            "completion_tokens": 1110,
+            "total_tokens": 3863,
+            "latency_ms": 6224,
+            "status": "ok",
+            "error": ""
+          }
+        ],
+        "repo": "agronholm/anyio",
+        "pr_number": 1198
+      },
+      {
+        "findings": [
+          {
+            "file": "tests/test_taskgroups.py",
+            "line": 152,
+            "level": "MEDIUM",
+            "type": "correctness",
+            "description": "测试中 catch 的是 `RuntimeError`，但如果 `tg.create_task()` 没有按预期抛出 `expected_error`，`else: pytest.fail(...)` 的 `pytest.fail` 会抛出 `Failed` 异常，而该异常不会被 `except RuntimeError` 捕获，导致测试失败而非跳过——这本意是合理的，但更严重的问题是：若 `create_task` 抛出了 `expected_error` 之外的其他异常（例如实现抛出了别的类型），该异常不会被捕获，会直接从 `try` 块向外传播，绕过后面所有的 `assert`，因此测试无法验证协程是否被关闭。应改为捕获更宽泛的异常或使用 `pytest.raises(RuntimeError, match=...)` 并显式检查 `exc is expected_error`，同时确保无论异常类型如何都会执行协程状态断言。",
+            "existing_code": "        except RuntimeError as exc:\n            assert exc is expected_error\n        else:\n            pytest.fail(\"TaskGroup.start_soon() did not propagate the error\")\n        finally:\n            loop.set_task_factory(original_task_factory)\n\n        assert getcoroutinestate(task_func_coro) is CORO_CLOSED"
+          },
+          {
+            "file": "src/anyio/_backends/_asyncio.py",
+            "line": 904,
+            "level": "LOW",
+            "type": "correctness",
+            "description": "在异常处理路径中，`wrapper_coro.close()` 和 `coro.close()` 都被 `suppress(BaseException)` 包裹。虽然吞掉关闭过程中的异常是合理的，但需注意 `wrapper_coro` 内部会 `await coro`；若 `custom_task_constructor`/`create_task` 在协程已经启动（eager 模式）后才抛异常，`wrapper_coro.close()` 可能触发 `RuntimeError: cannot reuse already awaited coroutine` 之类的异常，被 suppress 静默吞掉，可能掩盖掉真正需要诊断的问题。建议至少让第一个 close 的异常不被完全静默，或记录日志，以便排查。",
+            "existing_code": "        except BaseException:\n            with suppress(BaseException):\n                wrapper_coro.close()\n\n            with suppress(BaseException):\n                coro.close()\n\n            raise"
+          },
+          {
+            "file": "tests/test_taskgroups.py",
+            "line": 148,
+            "level": "LOW",
+            "type": "test",
+            "description": "工厂函数 `task_factory` 在 eager 模式下通过 `coro.send(None)` 手动驱动协程，但没有处理 `coro.send(None)` 可能抛出的其他异常（除了 `StopIteration`）。若 wrapper 协程在首次 send 时抛出非 `StopIteration` 的异常（例如实现变化导致），该异常会覆盖 `expected_error`，使测试行为的断言（`exc is expected_error`）失败且难以诊断。建议捕获更宽的异常或明确只测试目标路径。",
+            "existing_code": "        if eager:\n            try:\n                coro.send(None)\n            except StopIteration:\n                pass\n\n        raise expected_error"
+          }
+        ],
+        "llm_records": [
+          {
+            "job_id": "eval",
+            "group": "A",
+            "phase": "direct",
+            "model": "deepseek-v4.1-flash",
+            "protocol": "anthropic",
+            "prompt_tokens": 1395,
+            "completion_tokens": 726,
+            "total_tokens": 2121,
+            "latency_ms": 4598,
+            "status": "ok",
+            "error": ""
+          }
+        ],
+        "repo": "agronholm/anyio",
+        "pr_number": 1275
+      },
+      {
+        "findings": [
+          {
+            "file": "src/anyio/_backends/_asyncio.py",
+            "line": 2088,
+            "level": "MEDIUM",
+            "type": "correctness",
+            "description": "新的领养条件使用 `len(self._borrowers) < self._total_tokens`，其中 `self._borrowers` 是集合、`self._total_tokens` 是 float。当 total_tokens 被设为非整数（如 1.5）时，条件语义与 CapacityLimiter 允许 float 令牌数的设计略有偏差，但与旧逻辑（max(value - self._total_tokens, 0) 循环）相比行为基本一致，属可接受的边界。真正需注意：原实现基于差值增量通知，新实现基于总量比较，当 total_tokens 被降为低于当前 borrowers 时不会回收令牌，随后再升回时也不再超额发放，这正是修复目标，逻辑正确。",
+            "existing_code": "while self._wait_queue and len(self._borrowers) < self._total_tokens:"
+          }
+        ],
+        "llm_records": [
+          {
+            "job_id": "eval",
+            "group": "A",
+            "phase": "direct",
+            "model": "deepseek-v4.1-flash",
+            "protocol": "anthropic",
+            "prompt_tokens": 903,
+            "completion_tokens": 232,
+            "total_tokens": 1135,
+            "latency_ms": 2964,
+            "status": "ok",
+            "error": ""
+          }
+        ],
+        "repo": "agronholm/anyio",
+        "pr_number": 1223
+      },
+      {
+        "findings": [
+          {
+            "file": "src/anyio/_backends/_asyncio.py",
+            "line": 1045,
+            "level": "HIGH",
+            "type": "correctness",
+            "description": "此修复仍存在竞态：当事件循环在 `call_soon_threadsafe` 调用时尚未关闭但恰好处于关闭过程中，其内部实现可能不会抛出 RuntimeError 而是静默丢弃回调（_check_closed 仅在 _closed 为 True 时抛出），导致结果永远不被上报。更关键的是，`call_soon_threadsafe` 抛出的 RuntimeError 未必都意味着 loop 已关闭——它也可能来自回调调度链中其他不相关的原因。当前代码通过 `if not self.loop.is_closed(): raise` 来区分，但 `is_closed()` 检查本身与抛出异常之间也存在时间差：loop 可能在异常抛出后被重新判定为已关闭（不太可能，但语义上依赖“关闭后不可重开”这一假设）。建议改为仅吞掉确认由 loop 关闭导致的 RuntimeError，或捕获后记录，避免掩盖真实错误。",
+            "existing_code": "                    try:\n                        self.loop.call_soon_threadsafe(\n                            self._report_result, future, result, exception\n                        )\n                    except RuntimeError:\n                        if not self.loop.is_closed():\n                            raise"
+          },
+          {
+            "file": "src/anyio/_backends/_asyncio.py",
+            "line": 1042,
+            "level": "MEDIUM",
+            "type": "correctness",
+            "description": "原代码在调用 `call_soon_threadsafe` 之前先检查 `not self.loop.is_closed()`，新代码改为先调用再捕获异常。当 loop 已关闭时，`call_soon_threadsafe` 会调用 `_check_closed` 并抛出 RuntimeError，此异常的构造和 traceback 生成在热路径上（每次 worker 结果上报）增加了开销。虽然仅在关闭时才发生，但 catch 块内的 `self.loop.is_closed()` 对已关闭 loop 的调用在某些实现下可能本身也有副作用/开销。建议保留快速路径检查以减少异常路径的误触发。",
+            "existing_code": "                    try:\n                        self.loop.call_soon_threadsafe(\n                            self._report_result, future, result, exception\n                        )\n                    except RuntimeError:\n                        if not self.loop.is_closed():\n                            raise"
+          },
+          {
+            "file": "tests/test_to_thread.py",
+            "line": 178,
+            "level": "HIGH",
+            "type": "test",
+            "description": "该回归测试在 `main()` 内向 `loop.call_soon_threadsafe` 打补丁，通过 `side_effect` 让 worker 线程阻塞，并在任何 `call_soon_threadsafe` 调用（不区分调用来源）上触发同步。但 `task_group.cancel_scope.cancel()` 或其他 anyio 内部逻辑也可能从 worker 线程调用 `call_soon_threadsafe`，导致 `release_result_report` 之外的行为被意外同步，测试可能不稳定或掩盖真实调用路径。另外 `mocker.patch.object(loop, 'call_soon_threadsafe', ...)` 替换实例属性后，worker 线程持有的 `self.loop` 同一对象，patch 生效范围正确，但 mock 返回值/属性（如 `.when`）与真实 Handle 不同，可能影响后续断言。建议仅在识别到 `_report_result` 回调时同步，或使用更精确的匹配（如检查 `callback.__name__`）。",
+            "existing_code": "        def synchronized_call_soon_threadsafe(\n            callback: Any, *args: Any, context: Any = None\n        ) -> asyncio.Handle:\n            if worker_threads and threading.current_thread() is worker_threads[0]:\n                result_report_started.set()\n                assert release_result_report.wait(5)\n\n            return call_soon_threadsafe(callback, *args, context=context)"
+          },
+          {
+            "file": "tests/test_to_thread.py",
+            "line": 200,
+            "level": "MEDIUM",
+            "type": "test",
+            "description": "测试清理逻辑中 `release_worker.set()` 和 `release_result_report.set()` 放在 finally 中，但 `worker_threads[0].join(5)` 后若线程仍存活则 `is_alive()` 断言失败。更严重的是，如果 `anyio.run(main)` 在 `result_report_started.is_set()` 之前就抛出（例如 to_thread worker 未被正确调度），`main()` 会在 while 循环中无限等待 `result_report_started`，因为循环没有超时/取消保护，仅有 finally 释放事件——但 finally 在 while 循环结束后才执行，若 while 永不结束则 finally 也不会执行。这会让测试在异常路径下挂死。建议 while 循环中加入超时或依赖 `anyio.run` 的取消机制。",
+            "existing_code": "        release_worker.set()\n        while not result_report_started.is_set():\n            await checkpoint()\n\n    try:\n        anyio.run(main, backend=\"asyncio\")\n    finally:\n        release_worker.set()\n        release_result_report.set()"
+          },
+          {
+            "file": "docs/versionhistory.rst",
+            "line": 76,
+            "level": "INFO",
+            "type": "documentation",
+            "description": "版本记录描述了 issue #1265，但未提及修复方案的语义边界（仅在确认 loop 关闭时吞掉 RuntimeError）。对可能存在的“loop 关闭但未抛异常导致结果静默丢弃”的情况没有说明。建议补充说明或确认该场景不存在。",
+            "existing_code": "- Fixed an asyncio worker thread race that could raise ``RuntimeError`` when the event\n  loop closed between checking its state and scheduling the worker result\n  (`#1265 <https://github.com/agronholm/anyio/issues/1265>`_; PR by @hansu650)"
+          }
+        ],
+        "llm_records": [
+          {
+            "job_id": "eval",
+            "group": "A",
+            "phase": "direct",
+            "model": "deepseek-v4.1-flash",
+            "protocol": "anthropic",
+            "prompt_tokens": 1035,
+            "completion_tokens": 1305,
+            "total_tokens": 2340,
+            "latency_ms": 7189,
+            "status": "ok",
+            "error": ""
+          }
+        ],
+        "repo": "agronholm/anyio",
+        "pr_number": 1279
+      },
+      {
+        "findings": [
+          {
+            "file": "src/anyio/_lazyimport.py",
+            "line": 145,
+            "level": "MEDIUM",
+            "type": "correctness",
+            "description": "`_is_type_checking_block` 只检查 BoolOp 的第一个子表达式（`test.values[0]`），当条件为 `TYPE_CHECKING and <其他条件>` 时会误判整个块为类型检查块；反之若 `TYPE_CHECKING` 不是第一个操作数（如 `sys.version_info >= (3,11) and TYPE_CHECKING`）则会漏判，导致该 if 块内的导入不会被加入 lazy_map，运行时代理属性访问失败并抛出 AttributeError。",
+            "existing_code": "    if not isinstance(test, ast.BoolOp):\n        return False\n\n    subtest = test.values[0]"
+          },
+          {
+            "file": "src/anyio/_lazyimport.py",
+            "line": 157,
+            "level": "LOW",
+            "type": "correctness",
+            "description": "`_build_lazy_map` 仅处理 `ast.ImportFrom`，未处理裸 `ast.Import`（`import x`）形式的语句。若 TYPE_CHECKING 块中包含 `import foo` 这类导入，将被静默忽略，对应的名字无法通过 __getattr__ 解析，出现与预期 API 不一致的行为。",
+            "existing_code": "                case ast.ImportFrom():\n                    base = \".\" * stmt.level + (stmt.module or \"\")"
+          },
+          {
+            "file": "src/anyio/_lazyimport.py",
+            "line": 46,
+            "level": "MEDIUM",
+            "type": "correctness",
+            "description": "`__getattr__` 对 deprecated_aliases 的名字解析后，无论目标是否真的存在于该模块，`getattr(imported, target_attr)` 在目标属性缺失或导入失败时都会抛出 ImportError/AttributeError 之外的异常；更重要的是对于 deprecated 别名不会写入 `module_globals[name]` 做缓存（这是有意为之），但 `__dir__` 返回的 `names` 只来自 `lazy_map`（`names = sorted(lazy_map)`），deprecated 别名不会出现在 `dir()` 中，与 `__all__`/公开 API 不一致，可能影响 introspection（如 Sphinx、help()）。",
+            "existing_code": "    names = sorted(lazy_map)"
+          },
+          {
+            "file": "src/anyio/_lazyimport.py",
+            "line": 60,
+            "level": "LOW",
+            "type": "correctness",
+            "description": "属性缓存写入 `module_globals[name] = value` 后，若 value 为类/函数，会将其 `__module__` 改写为 `module_name`。对在本模块自身定义的符号（已存在于 module_globals 中）不会走 __getattr__，但缓存逻辑对来自子模块的类型生效；然而 `import_module(target_mod, module_name)` 的第二个参数应为基名（package）而非模块名，传 `module_name` 作为 package 参数对绝对导入路径 target_mod 无影响、但对相对路径会引入歧义，属潜在隐患。",
+            "existing_code": "        imported = import_module(target_mod, module_name)"
+          },
+          {
+            "file": "src/anyio/_lazyimport.py",
+            "line": 116,
+            "level": "MEDIUM",
+            "type": "security",
+            "description": "`set_deprecated_aliases` 与 `install_lazy_importer` 使用 `sys._getframe(1).f_globals` 并直接 `del module_globals[...]`，同时通过 `sys.modules[module_name].__dict__[\"__getattr__\"] = __getattr__` 修改模块字典。若同一模块多次调用（例如被 import 多次或测试中重复执行），`del` 会抛 KeyError；且 `set_deprecated_aliases` 直接覆盖已有 `__getattr__`（不合并），当与 lazy importer 同时使用时后设置者会覆盖前者，导致别名丢失。",
+            "existing_code": "    sys.modules[module_name].__dict__[\"__getattr__\"] = __getattr__"
+          },
+          {
+            "file": "src/anyio/_lazyimport.py",
+            "line": 165,
+            "level": "LOW",
+            "type": "correctness",
+            "description": "`_build_lazy_map` 中 `zip(arg0.keys, arg0.values, strict=True)` 对字典解包调用（如 `set_deprecated_aliases({**a, \"b\": \"c\"})`）会因 `arg0` 不是 `ast.Dict` 而触发断言失败；`assert` 在生产模式下（-O）会被移除，进而导致 `arg0.keys` 抛出 AttributeError 崩溃。",
+            "existing_code": "                        arg0 = call.args[0]\n                        assert isinstance(arg0, ast.Dict)"
+          },
+          {
+            "file": "src/anyio/_lazyimport.py",
+            "line": 29,
+            "level": "LOW",
+            "type": "correctness",
+            "description": "`install_lazy_importer` 无条件执行 `del module_globals[\"TYPE_CHECKING\"]` 与 `del module_globals[\"install_lazy_importer\"]`，若调用方未以 `from typing import TYPE_CHECKING` 引入（如仅 `import typing`）或名字已删除，会抛 KeyError，缺乏健壮性。",
+            "existing_code": "    del module_globals[\"TYPE_CHECKING\"]\n    del module_globals[\"install_lazy_importer\"]"
+          },
+          {
+            "file": "docs/conf.py",
+            "line": 40,
+            "level": "LOW",
+            "type": "correctness",
+            "description": "`fixup_module_name` 对 `anyio.abc._` 前缀只映射到 `anyio.abc`，对更细粒度子模块（如 `anyio._core._tasks`）统一折叠到 `anyio`，会丢失真实子模块层级，导致生成的 API 文档把不同子模块的符号归并到同一模块名下，可能产生重复/错误的交叉引用。",
+            "existing_code": "def fixup_module_name(module: str) -> str:\n    if module.startswith(\"anyio.abc._\"):\n        return \"anyio.abc\"\n    elif module.startswith(\"anyio._\"):\n        return \"anyio\""
+          }
+        ],
+        "llm_records": [
+          {
+            "job_id": "eval",
+            "group": "A",
+            "phase": "direct",
+            "model": "deepseek-v4.1-flash",
+            "protocol": "anthropic",
+            "prompt_tokens": 5141,
+            "completion_tokens": 1433,
+            "total_tokens": 6574,
+            "latency_ms": 7426,
+            "status": "ok",
+            "error": ""
+          }
+        ],
+        "repo": "agronholm/anyio",
+        "pr_number": 1169
+      },
+      {
+        "findings": [
+          {
+            "file": "src/anyio/_backends/_asyncio.py",
+            "line": 1447,
+            "level": "MEDIUM",
+            "type": "correctness",
+            "description": "在 aclose() 中，当 _receive_future/_send_future 已经 done() 时，代码仅跳过 set_result，但并未将引用置为 None 或进行清理。对比改动前的行为，done() 的 future 可能是被取消（CancelledError）或异常结束的，此时不调用 set_result 是正确的，但原先的代码逻辑假定 future 未完成。更关键的是：若 future 处于被取消状态（done 且 cancelled），随后调用 await self._receive_future 的地方会重新抛出 CancelledError，需确认调用方是否已处理。建议同时将已完成的 future 引用置为 None，避免后续误用陈旧结果。",
+            "existing_code": "if self._receive_future and not self._receive_future.done():"
+          },
+          {
+            "file": "src/anyio/_backends/_asyncio.py",
+            "line": 1445,
+            "level": "LOW",
+            "type": "concurrency",
+            "description": "使用 done() 检查后仍存在 TOCTOU 竞态：在检查 done() 到调用 set_result() 之间，future 可能被另一协程取消（例如取消传播），导致 set_result 仍抛出 InvalidStateError。此修复缩小了窗口但未彻底消除。若目标是彻底修复 #1267，建议用 try/except asyncio.InvalidStateError 包裹 set_result，以保证幂等。",
+            "existing_code": "if self._receive_future and not self._receive_future.done():\n                self._receive_future.set_result(None)"
+          },
+          {
+            "file": "tests/test_sockets.py",
+            "line": 1451,
+            "level": "MEDIUM",
+            "type": "test",
+            "description": "新增测试依赖 sleep_forever 后由 finally 中 aclose 触发竞态，但未对该竞态做确定性同步（wait_all_tasks_blocked 只在客户端侧调用，服务端 handler 内部 operate 任务是否已进入 receive/send 阻塞不确定）。在 operation=='receive' 分支，如果 operate 尚未真正调用 receive 就被取消，则无法复现目标竞态，测试可能偶发通过（假阴性）。建议在 handler 内增加同步点确保操作已开始阻塞后再关闭。",
+            "existing_code": "async with create_task_group() as tg:\n                tg.start_soon(operate)\n                try:\n                    await sleep_forever()\n                finally:\n                    await stream.aclose()"
+          },
+          {
+            "file": "tests/test_sockets.py",
+            "line": 1458,
+            "level": "LOW",
+            "type": "test",
+            "description": "send 分支使用 while True 循环发送 4096 字节填满缓冲区以制造阻塞，但未设定发送总量上限；若缓冲区足够大或接收端持续消费，循环可能在 aclose 生效前一直运行，导致测试在极端环境下耗时过长或资源占用。建议增加发送次数上限以保证测试有界。",
+            "existing_code": "while True:\n                            await stream.send(b\"\\0\" * 4096)"
+          }
+        ],
+        "llm_records": [
+          {
+            "job_id": "eval",
+            "group": "A",
+            "phase": "direct",
+            "model": "deepseek-v4.1-flash",
+            "protocol": "anthropic",
+            "prompt_tokens": 898,
+            "completion_tokens": 717,
+            "total_tokens": 1615,
+            "latency_ms": 4732,
+            "status": "ok",
+            "error": ""
+          }
+        ],
+        "repo": "agronholm/anyio",
+        "pr_number": 1269
+      }
+    ],
+    "B": [
+      {
+        "findings": [
+          {
+            "file": "docs/api/standard_library_types.md",
+            "line": 1254,
+            "level": "HIGH",
+            "type": "documentation",
+            "description": "文档示例输出错误：`m.model_dump()` 返回的是普通 dict 而非 OrderedDict，示例中 `#> {'x': OrderedDict({'foo': 1})}` 与实际行为不符（model_dump 默认递归转换为普通 dict）。该 doctest 无法通过。",
+            "existing_code": "print(m.model_dump())\n#> {'x': OrderedDict({'foo': 1})}"
+          },
+          {
+            "file": "pydantic-core/python/pydantic_core/core_schema.py",
+            "line": 2271,
+            "level": "MEDIUM",
+            "type": "documentation",
+            "description": "docstring 示例中 `assert v.validate_python({'a': '1', 'b': 2}) == OrderedDict({'a': 1, 'b': 2})` 假定输入 `'1'` 会被强制转换为 int 1，但 pydantic-core 默认 int 校验在 lax 模式下不会把字符串 '1' 转换为整数，该断言会失败。应使用 `{'a': 1, 'b': 2}` 作为输入。",
+            "existing_code": "    assert v.validate_python({'a': '1', 'b': 2}) == OrderedDict({'a': 1, 'b': 2})"
+          },
+          {
+            "file": "pydantic-core/src/recursion_guard.rs",
+            "line": 80,
+            "level": "LOW",
+            "type": "performance",
+            "description": "将 Windows 平台的递归保护栈偏移从 40 提升到 50，与本次新增 ordered-dict schema 无直接关系，属于未经说明的全局行为变更，可能掩盖其他问题或影响既有用例；建议说明理由或拆分到独立 PR。",
+            "existing_code": "    } else if cfg!(all(windows, not(PyPy))) {\n-        40\n+        50\n    } else {"
+          },
+          {
+            "file": "docs/plugins/conversion_table.py",
+            "line": 648,
+            "level": "INFO",
+            "type": "testing",
+            "description": "OrderedDict 转换表新增了 core_schema.OrderedDictSchema 的条目，但同 diff 未见 pydantic（Python 端）对 collections.OrderedDict / typing.OrderedDict 映射到该 schema 的实现变更；若未在 pydantic 侧注册，转换表测试可能无法覆盖该 schema。",
+            "existing_code": "    Row(\n        OrderedDict,\n        OrderedDict,\n        strict=True,\n        python_input=True,\n        core_schemas=[core_schema.OrderedDictSchema],\n    ),"
+          }
+        ],
+        "llm_records": [
+          {
+            "job_id": "eval",
+            "group": "B",
+            "phase": "direct+retrieval",
+            "model": "deepseek-v4.1-flash",
+            "protocol": "anthropic",
+            "prompt_tokens": 6453,
+            "completion_tokens": 602,
+            "total_tokens": 7055,
+            "latency_ms": 3936,
+            "status": "ok",
+            "error": ""
+          }
+        ],
+        "repo": "pydantic/pydantic",
+        "pr_number": 13796
+      },
+      {
+        "findings": [],
+        "llm_records": [
+          {
+            "job_id": "eval",
+            "group": "B",
+            "phase": "direct+retrieval",
+            "model": "deepseek-v4.1-flash",
+            "protocol": "anthropic",
+            "prompt_tokens": 889,
+            "completion_tokens": 6,
+            "total_tokens": 895,
+            "latency_ms": 1959,
+            "status": "ok",
+            "error": ""
+          }
+        ],
+        "repo": "pydantic/pydantic",
+        "pr_number": 13699
+      },
+      {
+        "findings": [
+          {
+            "file": "pydantic/experimental/pipeline.py",
+            "line": 544,
+            "level": "MEDIUM",
+            "type": "correctness",
+            "description": "将 'generator' 加入 _LENGTH_SCHEMA_TYPES 后，当输入核心 schema 为 generator 且同时设置了 min_length 时，代码会走原生分支，但 generator schema 不支持 min_length 约束（pydantic-core 的 generator_schema 仅有 items_schema，无 min_length/max_length 字段）。这会导致 min_length 被静默忽略或传入非法字段，生成无意义的校验器。测试 test_len_constraint_on_generator 使用 Iterable[int]，其核心 schema 未必是 generator 类型，因此可能未覆盖该路径。",
+            "existing_code": "_LENGTH_SCHEMA_TYPES = frozenset({'str', 'bytes', 'list', 'tuple', 'set', 'frozenset', 'dict', 'generator'})"
+          },
+          {
+            "file": "pydantic/experimental/pipeline.py",
+            "line": 545,
+            "level": "MEDIUM",
+            "type": "correctness",
+            "description": "将 'fraction'、'date'、'time'、'datetime'、'timedelta' 加入 _ORDERING_SCHEMA_TYPES 后，会直接向对应核心 schema 写入 gt/ge/lt/le。但 datetime 的核心语义与 pytz 时区处理、以及 timedelta 在 pydantic-core 中对 gt/ge 的支持能力需要确认；若底层 schema 不识别这些字段，约束将被静默丢弃而非回退到函数校验，导致约束失效（安全性/正确性问题）。建议确认 pydantic-core 对应 schema 确实支持这些字段。",
+            "existing_code": "_ORDERING_SCHEMA_TYPES = frozenset({'int', 'float', 'decimal', 'fraction', 'date', 'time', 'datetime', 'timedelta'})"
+          },
+          {
+            "file": "pydantic/experimental/pipeline.py",
+            "line": 555,
+            "level": "LOW",
+            "type": "correctness",
+            "description": "原生分支与回退分支的边界条件处理不一致：原生分支中 min_len 默认为 0（annotated_types.Len 默认），仅当 min_len != 0 才写入 min_length；而回退分支的 check_len 无条件使用 min_len <= len_v，当 min_len 为 0 时行为等价，但若上游 schema 已存在 min_length/max_length（如 transform 后保留了长度约束），原生分支的 s.copy() 会覆盖而非取更严格值。此为潜在语义差异，需确认是否符合预期。",
+            "existing_code": "            if min_len != 0:\n                s['min_length'] = min_len  # pyright: ignore[reportGeneralTypeIssues]"
+          },
+          {
+            "file": "tests/test_pipeline.py",
+            "line": 260,
+            "level": "LOW",
+            "type": "test",
+            "description": "test_len_constraint_on_generator 中 TypeAdapter 注解为 Iterable[int]，但 validate_as(Iterable[int]) 的阶段实际核心 schema 可能不是 'generator' 类型，因此该测试未必覆盖 _LENGTH_SCHEMA_TYPES 中新增的 'generator' 条目；若 generator 分支实际不支持长度约束，该测试可能给出误导性的通过结果。",
+            "existing_code": "    ta = TypeAdapter[Iterable[int]](Annotated[Iterable[int], validate_as(Iterable[int]).constrain(Len(2, 3))])  # pyright: ignore[reportCallIssue, reportArgumentType]"
+          }
+        ],
+        "llm_records": [
+          {
+            "job_id": "eval",
+            "group": "B",
+            "phase": "direct+retrieval",
+            "model": "deepseek-v4.1-flash",
+            "protocol": "anthropic",
+            "prompt_tokens": 3722,
+            "completion_tokens": 799,
+            "total_tokens": 4521,
+            "latency_ms": 5094,
+            "status": "ok",
+            "error": ""
+          }
+        ],
+        "repo": "pydantic/pydantic",
+        "pr_number": 13659
+      },
+      {
+        "findings": [
+          {
+            "file": "src/anyio/_core/_synchronization.py",
+            "line": 295,
+            "level": "MEDIUM",
+            "type": "correctness",
+            "description": "`_check_acquired()` 现在通过 `self._lock.statistics().owner` 判断锁归属，而 `Condition(lock)` 允许传入任意 Lock。若传入的是同一任务的多个 Condition 或外部直接持有的锁，`statistics().owner` 的语义依赖后端实现；在某些后端（如 trio）中 owner 可能为 None 或并非 TaskInfo 比较对象，可能导致误判。需确认所有后端的 `LockStatistics.owner` 与 `get_current_task()` 返回值一致可比较。",
+            "existing_code": "        if self._lock.statistics().owner != get_current_task():"
+          },
+          {
+            "file": "src/anyio/_core/_synchronization.py",
+            "line": 295,
+            "level": "MEDIUM",
+            "type": "correctness",
+            "description": "使用 `self._lock.statistics()` 每次检查都构造 LockStatistics 对象，在 notify/notify_all 的热路径上引入分配开销；更重要的是 statistics() 可能不是所有 Lock 实现都保证 O(1) 且线程/任务安全。原来的 `_owner_task` 是缓存字段，改动后语义从“Condition 记录谁获得了它”变成“底层锁当时报告的 owner”，当底层锁被同一任务通过其它途径重复获取（例如可重入场景）时，owner 字段可能无法区分。",
+            "existing_code": "        if self._lock.statistics().owner != get_current_task():"
+          },
+          {
+            "file": "tests/test_synchronization.py",
+            "line": 442,
+            "level": "LOW",
+            "type": "testing",
+            "description": "`test_notify_with_shared_lock` 只调用了 notify/notify_all 而没有真实 waiter，无法验证 notify 实际唤醒语义，仅验证不抛异常；建议加入等待任务以覆盖真正的执行路径。",
+            "existing_code": "    async def test_notify_with_shared_lock(self) -> None:\n        lock = Lock()\n        condition = Condition(lock)\n        async with lock:\n            condition.notify()\n            condition.notify_all()"
+          },
+          {
+            "file": "tests/test_synchronization.py",
+            "line": 451,
+            "level": "LOW",
+            "type": "testing",
+            "description": "`test_notify_no_lock` 与 `test_notify_after_release` 都断言相同的 RuntimeError 消息，且后者使用无参 `Condition()` 而非共享锁场景，未覆盖“通过 Lock 直接获取后又释放”的真实回归场景（issue #1319 的核心）。建议在 release 场景中使用显式 Lock 以贴合 issue。",
+            "existing_code": "    async def test_notify_after_release(self) -> None:\n        condition = Condition()\n        await condition.acquire()\n        condition.release()"
+          }
+        ],
+        "llm_records": [
+          {
+            "job_id": "eval",
+            "group": "B",
+            "phase": "direct+retrieval",
+            "model": "deepseek-v4.1-flash",
+            "protocol": "anthropic",
+            "prompt_tokens": 1379,
+            "completion_tokens": 648,
+            "total_tokens": 2027,
+            "latency_ms": 4965,
+            "status": "ok",
+            "error": ""
+          }
+        ],
+        "repo": "agronholm/anyio",
+        "pr_number": 1320
+      },
+      {
+        "findings": [
+          {
+            "file": "src/anyio/_backends/_asyncio.py",
+            "line": 660,
+            "level": "MEDIUM",
+            "type": "correctness",
+            "description": "_reparent 中当 self._parent_scope 为 None 时不会从任何父 scope 的 _child_scopes 中移除自身，但后续又将其加入 new_parent._child_scopes。此外该方法未处理新父 scope 已失效（如已退出）的情况，可能导致 child scope 悬挂在已失效的父 scope 上，造成取消状态不一致。",
+            "existing_code": "        if self._parent_scope is not None:\n            self._parent_scope._child_scopes.discard(self)\n\n        self._parent_scope = new_parent\n        new_parent._child_scopes.add(self)"
+          },
+          {
+            "file": "src/anyio/_backends/_asyncio.py",
+            "line": 764,
+            "level": "HIGH",
+            "type": "correctness",
+            "description": "_AsyncioTaskStatus.started() 在 future 已 done 且 cancelled 时直接 return，此时不会执行 _spawn_scope._reparent（这是预期），但也未将 _task_states[task].parent_id 更新为 None 之外的处理；不过更关键的是：future 已 done 且 cancelled 时，spawn_scope 仍挂在 caller 的 cancel scope 上而不属于 target scope，该 scope 后续无人清理，可能造成 cancel scope 泄漏或事件循环中任务状态不一致。",
+            "existing_code": "        if self._future.done():\n            if not self._future.cancelled():\n                raise RuntimeError(\"called 'started' twice on the same task status\")\n            else:\n                # Caller of start() was cancelled, nothing to reparent\n                return"
+          },
+          {
+            "file": "src/anyio/_backends/_asyncio.py",
+            "line": 941,
+            "level": "MEDIUM",
+            "type": "correctness",
+            "description": "_spawn 中 initial_scope 的选取：当 caller 是 unmanaged task 时回退到 self.cancel_scope，这与 task_status 传入的 spawn_scope（CancelScope()）不一致。后续 started() 会调用 spawn_scope._reparent(target_scope)，但任务实际被登记在 initial_scope._tasks 中，若 initial_scope != spawn_scope，则 _tasks 登记与 cancel_scope 归属不一致，导致取消/清理逻辑错乱。",
+            "existing_code": "        if task_status_future is not None:\n            parent_id = id(current_task())\n            caller_state = _task_states.get(cast(asyncio.Task, current_task()))\n            if caller_state is not None and caller_state.cancel_scope is not None:\n                initial_scope = caller_state.cancel_scope\n            else:\n                # The caller is an unmanaged task (no task state)\n                initial_scope = self.cancel_scope"
+          },
+          {
+            "file": "src/anyio/_backends/_asyncio.py",
+            "line": 1009,
+            "level": "HIGH",
+            "type": "correctness",
+            "description": "TaskGroup.start() 中为 _AsyncioTaskStatus 传入 self.cancel_scope 作为 target_scope，同时又新建 CancelScope() 作为 spawn_scope。但 _spawn 内部 initial_scope 的计算逻辑可能选用 caller 的 cancel_scope 而非这个新建的 spawn_scope，若二者不一致，则 started() 时的 _reparent(target_scope) 所基于的当前 parent 并非 spawn_scope 的预期 parent，导致重新挂载到错误的 scope 链。",
+            "existing_code": "        task_status: _AsyncioTaskStatus[Any] = _AsyncioTaskStatus(\n            future, id(self.cancel_scope._host_task), self.cancel_scope, CancelScope()"
+          },
+          {
+            "file": "src/anyio/_core/_tasks.py",
+            "line": 305,
+            "level": "LOW",
+            "type": "correctness",
+            "description": "TaskHandle 新增可选 cancel_scope 参数后，_cancel_scope 直接引用外部传入的 CancelScope。若调用方与 TaskHandle 共享同一 scope 实例，多处修改（如 _reparent）可能相互影响；需要确认 handle.cancel_scope 的语义变化不会破坏既有 API 契约（例如 handle.cancel_scope.cancel() 的行为）。",
+            "existing_code": "        self._cancel_scope = cancel_scope if cancel_scope is not None else CancelScope()"
+          },
+          {
+            "file": "tests/test_taskgroups.py",
+            "line": 1938,
+            "level": "MEDIUM",
+            "type": "test",
+            "description": "新增测试仅使用 asyncio 默认后端运行（未参数化 anyio_backend），且断言依赖具体取消时机。测试覆盖了取消前/后的 checkpoint 行为，但未断言 CancelledError 不会泄漏这一关键需求的具体表现，验证不够充分。",
+            "existing_code": "async def test_start_not_cancelled_before_started_by_tg() -> None:"
+          },
+          {
+            "file": "src/anyio/_backends/_asyncio.py",
+            "line": 666,
+            "level": "MEDIUM",
+            "type": "correctness",
+            "description": "_reparent 调用 _restart_cancellation_in_parent() 会遍历新的父 scope 链并未经判断地重新投递取消。若 new_parent 未处于取消状态但存在待处理的取消传递（如父 scope 即将取消但尚未触发），可能提前或重复触发取消投递，与 Trio 语义不完全一致。",
+            "existing_code": "        # If the new parent (or an ancestor) is already cancelled, (re)start the\n        # delivery loop to ensure we're cancelled at next checkpoint like Trio.\n        self._restart_cancellation_in_parent()"
+          }
+        ],
+        "llm_records": [
+          {
+            "job_id": "eval",
+            "group": "B",
+            "phase": "direct+retrieval",
+            "model": "deepseek-v4.1-flash",
+            "protocol": "anthropic",
+            "prompt_tokens": 3339,
+            "completion_tokens": 1293,
+            "total_tokens": 4632,
+            "latency_ms": 6882,
+            "status": "ok",
+            "error": ""
+          }
+        ],
+        "repo": "agronholm/anyio",
+        "pr_number": 1198
+      },
+      {
+        "findings": [
+          {
+            "file": "src/anyio/_backends/_asyncio.py",
+            "line": 906,
+            "level": "LOW",
+            "type": "correctness",
+            "description": "在异常处理中调用了 `coro.close()`，但此时 `coro` 的引用是否一定指向传入 create_task 的原始协程？若 `create_task` 在 `wrapper_coro` 构造前就抛出（失败路径可达），此时 `coro` 可能尚未被消费但也未进入 wrapper，关闭它是正确的。但需要确认：当 task factory 抛出异常时，asyncio 的 create_task 语义是否会同时关闭传入的 coro？若会，则此处重复 close 是幂等的（无问题）。此段本身逻辑健壮，仅提示注意双重关闭的幂等性依赖，非缺陷。",
+            "existing_code": "            with suppress(BaseException):\n                coro.close()\n\n            raise"
+          },
+          {
+            "file": "tests/test_taskgroups.py",
+            "line": 154,
+            "level": "MEDIUM",
+            "type": "test",
+            "description": "测试在 `async with create_task_group()` 退出前重新设置了 task factory，但断言 `wrapper_coro` 的关闭状态发生在任务组上下文内。由于任务组退出时可能仍会尝试处理已关闭的协程路径，测试覆盖了正常路径，但对 `suspend=True` 时 wrapper_coro 可能实际进入了挂起点再被关闭的情形未单独验证执行了哪段代码。更关键的潜在问题：测试未验证 `task_func_coro` 在 factory 抛出且非 eager 场景下是否与 wrapper_coro 为同一对象被重复关闭导致 RuntimeError 被 suppress 掩盖真实错误。",
+            "existing_code": "        assert getcoroutinestate(task_func_coro) is CORO_CLOSED\n        assert wrapper_coro is not None\n        assert getcoroutinestate(wrapper_coro) is CORO_CLOSED"
+          },
+          {
+            "file": "src/anyio/_backends/_asyncio.py",
+            "line": 895,
+            "level": "HIGH",
+            "type": "correctness",
+            "description": "在 eager task factory 路径下，`custom_task_constructor(wrapper_coro, ...)` 可能已经同步执行了 `wrapper_coro.send(None)` 并使其进入挂起或终止状态。若 constructor 在 send 后抛出异常，`wrapper_coro.close()` 会关闭一个已经启动的协程；同时 `coro.close()` 关闭原始协程。但若 eager 工厂已经同步将 wrapper 运行到完成（协程被关闭且抛出的异常不是来自构造本身），此处再 close 可能抛出 RuntimeError('cannot close a running coroutine') 并被 suppress 隐藏，导致原始异常信息丢失或清理不完整。建议区分 wrapper 是否已启动。",
+            "existing_code": "                    custom_task_constructor(\n                    wrapper_coro, loop=loop, name=handle.name\n                )"
+          },
+          {
+            "file": "tests/test_taskgroups.py",
+            "line": 120,
+            "level": "LOW",
+            "type": "test",
+            "description": "该测试硬编码 `anyio_backend` 为 'asyncio' 并直接使用 `asyncio.get_running_loop()` 与 `loop.set_task_factory`，但未标记 `@pytest.mark.anyio` 之外的 backend fixture 过滤是否与仓库统一的 `asyncio_params` 模式一致；若仓库使用 `anyio_backend` fixture 的参数化约定，硬编码字符串可能与其他测试不一致，但功能上可行。",
+            "existing_code": "@pytest.mark.parametrize(\"anyio_backend\", [\"asyncio\"])"
+          }
+        ],
+        "llm_records": [
+          {
+            "job_id": "eval",
+            "group": "B",
+            "phase": "direct+retrieval",
+            "model": "deepseek-v4.1-flash",
+            "protocol": "anthropic",
+            "prompt_tokens": 1955,
+            "completion_tokens": 816,
+            "total_tokens": 2771,
+            "latency_ms": 5700,
+            "status": "ok",
+            "error": ""
+          }
+        ],
+        "repo": "agronholm/anyio",
+        "pr_number": 1275
+      },
+      {
+        "findings": [
+          {
+            "file": "tests/test_synchronization.py",
+            "line": 900,
+            "level": "MEDIUM",
+            "type": "测试覆盖",
+            "description": "新增测试只验证了下调后立即上调到原值（2）的场景，未覆盖真正会触发原 bug 的“过订阅后上调超过当前借用数”的情形（例如先 total_tokens=1 再设为 3，此时 borrowed_tokens=2，应有 1 个等待者被唤醒）。当前实现修复的是 len(self._borrowers) < self._total_tokens 的边界，如果取值写成 <=，本测试因 2<2 为假仍然通过，无法捕获该回归。建议增加 total_tokens 上调到大于当前借用数的断言（检查 borrowers/tasks_waiting 变化）。",
+            "existing_code": "            limiter.total_tokens = 1\n            limiter.total_tokens = 2\n            await wait_all_tasks_blocked()\n            assert limiter.statistics().borrowed_tokens == 2\n            assert limiter.statistics().tasks_waiting == 2"
+          }
+        ],
+        "llm_records": [
+          {
+            "job_id": "eval",
+            "group": "B",
+            "phase": "direct+retrieval",
+            "model": "deepseek-v4.1-flash",
+            "protocol": "anthropic",
+            "prompt_tokens": 1421,
+            "completion_tokens": 245,
+            "total_tokens": 1666,
+            "latency_ms": 3096,
+            "status": "ok",
+            "error": ""
+          }
+        ],
+        "repo": "agronholm/anyio",
+        "pr_number": 1223
+      },
+      {
+        "findings": [
+          {
+            "file": "tests/test_to_thread.py",
+            "line": 152,
+            "level": "MEDIUM",
+            "type": "测试缺陷",
+            "description": "测试用例存在竞态：`loop.call_soon_threadsafe` 被 mock 为 side_effect，但 `synchronized_call_soon_threadsafe` 在 worker 线程中会阻塞等待 `release_result_report`（最多 5 秒）。当断言失败或超时（assert 抛出）时，异常发生在 `to_thread.run_sync` 的 worker 线程内，会被吞成 future 异常。此外 `release_worker` 在 `finally` 中才 set，而主流程已在 cancel 后 set，若 `anyio.run(main)` 因任何原因提前退出或断言失败于 worker 线程内，`release_result_report` 也只在 `finally` 中被 set，逻辑上可行但该测试对 mock 的全局 patch 可能影响 event loop 内部其他 `call_soon_threadsafe` 调用（例如 `loop.call_soon_threadsafe` 被用于任何 anyio 内部调度），造成非预期的阻塞。",
+            "existing_code": "if worker_threads and threading.current_thread() is worker_threads[0]:\n                result_report_started.set()\n                assert release_result_report.wait(5)"
+          },
+          {
+            "file": "src/anyio/_backends/_asyncio.py",
+            "line": 1045,
+            "level": "LOW",
+            "type": "正确性",
+            "description": "捕获 RuntimeError 后通过 `if not self.loop.is_closed(): raise` 重新抛出存在 TOCTOU：若 loop 在 `call_soon_threadsafe` 抛 RuntimeError 后、`is_closed()` 检查前被关闭，检查结果仍为 True（已关闭），从而静默吞掉异常——这是期望行为。但反之，若 RuntimeError 并非由 loop 关闭引起（例如其他原因），且此时 loop 恰好处于关闭中，异常会被意外吞掉。建议直接判断 `self.loop.is_closed()` 作为条件或捕获更精确的异常信息，避免掩盖非关闭类的 RuntimeError。",
+            "existing_code": "except RuntimeError:\n                        if not self.loop.is_closed():\n                            raise"
+          },
+          {
+            "file": "docs/versionhistory.rst",
+            "line": 75,
+            "level": "INFO",
+            "type": "文档",
+            "description": "版本历史条目描述为 'event loop closed between checking its state and scheduling the worker result'，但修复实际上移除了显式的 `is_closed()` 预检查（改为 try/except），描述与实现改动略有出入，建议同步措辞以减少歧义。",
+            "existing_code": "when the event\n  loop closed between checking its state and scheduling the worker result"
+          }
+        ],
+        "llm_records": [
+          {
+            "job_id": "eval",
+            "group": "B",
+            "phase": "direct+retrieval",
+            "model": "deepseek-v4.1-flash",
+            "protocol": "anthropic",
+            "prompt_tokens": 1688,
+            "completion_tokens": 610,
+            "total_tokens": 2298,
+            "latency_ms": 4403,
+            "status": "ok",
+            "error": ""
+          }
+        ],
+        "repo": "agronholm/anyio",
+        "pr_number": 1279
+      },
+      {
+        "findings": [
+          {
+            "file": "src/anyio/_lazyimport.py",
+            "line": 110,
+            "level": "HIGH",
+            "type": "correctness",
+            "description": "set_deprecated_aliases 在 TYPE_CHECKING 块内被调用时只是从模块全局命名空间中删除自身（`del module_globals[set_deprecated_aliases.__name__]`）并覆盖 `__getattr__`，但在运行时该函数从未被真正调用（因为它在 TYPE_CHECKING 块内），因此 `sys.modules[module_name].__dict__['__getattr__']` 永远不会被设置。install_lazy_importer 虽然从 AST 解析了 deprecated_aliases 并在其内部 __getattr__ 中使用，但 set_deprecated_aliases 自身的运行时逻辑是死代码，且其行为与 install_lazy_importer 中的处理重复/冲突。",
+            "existing_code": "    def __getattr__(name: str) -> Any:\n        try:\n            target = aliases[name]\n        except KeyError:\n            raise AttributeError(\n                f\"module {module_name!r} has no attribute {name!r}\"\n            ) from None\n\n        emit_deprecation_warning(module_name, name, target)\n        target_modname, attrname = target.rsplit(\".\", 1)\n        module = import_module(target_modname)\n        return getattr(module, attrname)\n\n    sys.modules[module_name].__dict__[\"__getattr__\"] = __getattr__"
+          },
+          {
+            "file": "src/anyio/_lazyimport.py",
+            "line": 62,
+            "level": "MEDIUM",
+            "type": "correctness",
+            "description": "在 __getattr__ 中通过 `value.__module__ = module_name` 修改被导入对象（通常是类）的 __module__ 属性，这会直接修改源模块中定义的类对象本身。如果该值是被多个模块共享的类，会污染原始模块中类的 __module__（例如 anyio._core._tasks.CancelScope.__module__ 被改为 'anyio'），可能影响 pickle、repr 及反射行为。原实现只在 anyio.__init__ 结尾对 locals 中的对象做一次性的模块名修正，而懒加载路径下每个属性访问都可能改写共享类。",
+            "existing_code": "        if (\n            getattr(value, \"__module__\", \"\").startswith(module_prefix)\n            and name not in deprecated_aliases\n        ):\n            value.__module__ = module_name"
+          },
+          {
+            "file": "src/anyio/_lazyimport.py",
+            "line": 48,
+            "level": "MEDIUM",
+            "type": "correctness",
+            "description": "install_lazy_importer 无条件执行 `del module_globals['TYPE_CHECKING']` 和 `del module_globals['install_lazy_importer']`。若调用方模块未按预期导入/绑定这些名字，会抛出 KeyError 而非友好错误。虽然当前调用点满足条件，但作为通用工具函数，这种硬删除缺少防御。",
+            "existing_code": "    # Delete symbols that are not part of the API\n    del module_globals[\"TYPE_CHECKING\"]\n    del module_globals[\"install_lazy_importer\"]"
+          },
+          {
+            "file": "src/anyio/_lazyimport.py",
+            "line": 79,
+            "level": "MEDIUM",
+            "type": "correctness",
+            "description": "__dir__ 仅返回 lazy_map 中的名字（names = sorted(lazy_map)），完全忽略了 deprecated_aliases 中的名字，导致这些已弃用别名在 dir(module) 中不可见，破坏了自省与 IDE 补全。",
+            "existing_code": "    names = sorted(lazy_map)\n...\n    def __dir__() -> list[str]:\n        return names"
+          },
+          {
+            "file": "src/anyio/_lazyimport.py",
+            "line": 152,
+            "level": "HIGH",
+            "type": "correctness",
+            "description": "_build_lazy_map 使用 `compile(source, module.__file__ or \"\", \"exec\", ast.PyCF_ONLY_AST)`，其中 source 来自 inspect.getsource。若模块源码因装饰器/编码（如带 BOM 或 coding 行）导致 inspect.getsource 返回的文本被 compile 时出现缩进/语法问题会抛异常，但更关键的是 compile 只捕获了 OSError 而没有捕获 SyntaxError（inspect.getsource 在 PyInstaller 等场景可能返回不完整源码）。异常会向上传播导致 import 失败，而文档声称有 fallback 模式。",
+            "existing_code": "    try:\n        source = inspect.getsource(module)\n    except OSError:\n        return {}, {}\n\n    tree = compile(source, module.__file__ or \"\", \"exec\", ast.PyCF_ONLY_AST)"
+          },
+          {
+            "file": "src/anyio/_lazyimport.py",
+            "line": 120,
+            "level": "MEDIUM",
+            "type": "correctness",
+            "description": "_is_type_checking_block 仅检查 test 是 BoolOp 并取 test.values[0]，不区分 BoolOp 的 op 是非 Or（例如 `if x and TYPE_CHECKING:`），也不检查后续的值，可能把非 TYPE_CHECKING 的布尔表达式块误判为 TYPE_CHECKING 块。",
+            "existing_code": "def _is_type_checking_block(test: ast.AST) -> bool:\n    if not isinstance(test, ast.BoolOp):\n        return False\n\n    subtest = test.values[0]"
+          },
+          {
+            "file": "src/anyio/_lazyimport.py",
+            "line": 15,
+            "level": "LOW",
+            "type": "correctness",
+            "description": "使用 sys._getframe(1) 获取调用方帧，在部分实现（如 PyPy、无帧的替代解释器或有 __getattr__ 包装）上可能不可用，且依赖调用栈深度恰好为 1，脆弱。文档提到的 PyInstaller fallback 场景下若 sys._getframe 不可用会直接失败。",
+            "existing_code": "def install_lazy_importer() -> bool:\n    module_globals = sys._getframe(1).f_globals"
+          },
+          {
+            "file": "src/anyio/__init__.py",
+            "line": 0,
+            "level": "MEDIUM",
+            "type": "correctness",
+            "description": "顶层 __init__ 改为懒加载后，模块级 __getattr__ 会缓存到 module_globals，但对于通过 `from anyio import X` 的导入，静态分析工具（如 mypy/pyright）无法看到真实符号，因为懒加载映射是运行期构建的。原 PR 依赖 TYPE_CHECKING 块提供类型信息，但需确认 TYPE_CHECKING 块与运行时 lazy_map 名称严格一致，否则会出现运行时可用而类型检查不可用的符号（或反之）。",
+            "existing_code": "from ._core._contextmanagers import AsyncContextManagerMixin as AsyncContextManagerMixin"
+          },
+          {
+            "file": "docs/conf.py",
+            "line": 33,
+            "level": "LOW",
+            "type": "correctness",
+            "description": "fixup_module_name 使用 `module.startswith(\"anyio._\")` 将 anyio._ 前缀映射回 anyio，但 `anyio.abc._` 已在前面处理；而对于 `anyio._core._tasks` 这类，会被映射为 `anyio`，丢失了更具体的子模块信息（如 anyio._core._exceptions 也变成 anyio），可能使 Sphinx 对异常类等生成错误的模块归属。",
+            "existing_code": "def fixup_module_name(module: str) -> str:\n    if module.startswith(\"anyio.abc._\"):\n        return \"anyio.abc\"\n    elif module.startswith(\"anyio._\"):\n        return \"anyio\"\n    else:\n        return module"
+          },
+          {
+            "file": "src/anyio/_backends/_asyncio.py",
+            "line": 2565,
+            "level": "LOW",
+            "type": "correctness",
+            "description": "把返回类型注解从 `abc.Event` 改为 `BaseEvent`（以及 BaseLock/BaseSemaphore/BaseCapacityLimiter/BaseCancelScope）需要确认这些 Base* 名称在运行期已导入（因为 from __future__ import annotations 下注解是字符串，但工具如 sphinx 会解析）。若这些 Base* 只存在于 TYPE_CHECKING 块中，Sphinx autodoc 或 typing.get_type_hints 会失败。需确认其导入来源。",
+            "existing_code": "    @classmethod\n    def create_event(cls) -> BaseEvent:\n        return Event()"
+          }
+        ],
+        "llm_records": [
+          {
+            "job_id": "eval",
+            "group": "B",
+            "phase": "direct+retrieval",
+            "model": "deepseek-v4.1-flash",
+            "protocol": "anthropic",
+            "prompt_tokens": 5662,
+            "completion_tokens": 2061,
+            "total_tokens": 7723,
+            "latency_ms": 10203,
+            "status": "ok",
+            "error": ""
+          }
+        ],
+        "repo": "agronholm/anyio",
+        "pr_number": 1169
+      },
+      {
+        "findings": [
+          {
+            "file": "src/anyio/_backends/_asyncio.py",
+            "line": 1447,
+            "level": "MEDIUM",
+            "type": "correctness",
+            "description": "改用 `not self._receive_future.done()`/`not self._send_future.done()` 守卫后，若 future 在被取消时已被设置为“已取消”（cancelled）状态，aclose() 将不再对它做任何处理。但 aclose() 之后并未清空 `self._receive_future`/`self._send_future` 引用（原代码也没有，只是靠 set_result 使其 done）。当操作是“被取消”而不是“被 set_result(None) 唤醒”时，future 的异常（CancelledError）可能未被 retrieve，导致 Python 在事件循环关闭时打印 “Future exception was never retrieved” 或掩盖真正的取消。建议在守卫为真时显式清空字段（置为 None），或对已取消/已完成的 future 调用 exception() 进行 retrieve。",
+            "existing_code": "            if self._receive_future and not self._receive_future.done():\n                self._receive_future.set_result(None)\n            if self._send_future and not self._send_future.done():\n                self._send_future.set_result(None)"
+          },
+          {
+            "file": "src/anyio/_backends/_asyncio.py",
+            "line": 1447,
+            "level": "HIGH",
+            "type": "correctness",
+            "description": "该守卫仅判断 done()，未区分 future 是因取消而 done 还是因正常 set_result(None) 而 done。若 future 已经处于 done 状态（例如并发接收/发送已被唤醒并设置了结果），aclose() 直接跳过是合理的；但如果 future 是被 cancel() 后处于 done，则此处不设置结果导致后续等待该 future 的协程可能得到 CancelledError 而非正常的关闭信号。这正好是本次要修复的场景（并发 I/O 刚被取消），仅靠 `done()` 判断不足以保证关闭语义正确。需要在跳过前确认 future 是否 cancelled，并相应地 retrieve 异常或重新抛出关闭信号。",
+            "existing_code": "            if self._receive_future and not self._receive_future.done():\n                self._receive_future.set_result(None)"
+          },
+          {
+            "file": "tests/test_sockets.py",
+            "line": 1455,
+            "level": "MEDIUM",
+            "type": "testing",
+            "description": "新增测试缺少断言，仅验证调用过程不抛异常，未对修复前后的行为差异做出可验证判定（例如未断言 asyncio.InvalidStateError 不会出现、也未断言 ClosedResourceError 是否被正确吞掉）。当 `operation == \"receive\"` 时 `with suppress(ClosedResourceError)` 会把任何 ClosedResourceError 都吞掉，若实现回归、aclose() 又抛 InvalidStateError，测试可能仍会通过（取决于异常传播路径）。建议显式断言不会抛出 InvalidStateError，并在 sleep_forever 被取消后校验任务已结束、stream 状态正确。",
+            "existing_code": "            async def operate() -> None:\n                # Closing may wake the operation before cancellation reaches it.\n                with suppress(ClosedResourceError):\n                    if operation == \"receive\":\n                        await stream.receive()\n                    else:\n                        while True:\n                            await stream.send(b\"\\0\" * 4096)"
+          },
+          {
+            "file": "tests/test_sockets.py",
+            "line": 1448,
+            "level": "LOW",
+            "type": "testing",
+            "description": "测试的 send 分支使用 `while True: await stream.send(b\"\\0\" * 4096)` 持续发送，依赖 `wait_all_tasks_blocked()` 后立即取消。在高负载或不同事件循环实现下，客户端可能尚未开始读取、或发送缓冲区填满导致取消时机变化，测试存在潜在的时序不稳定（flaky）。建议改用更确定性的同步点（如事件/Event 通知对方已开始操作）而非依赖 wait_all_tasks_blocked。",
+            "existing_code": "        @pytest.mark.parametrize(\"operation\", [\"receive\", \"send\"])\n    async def test_close_after_cancelled_io(\n        self, socket_path: Path, operation: Literal[\"receive\", \"send\"]\n    ) -> None:"
+          },
+          {
+            "file": "tests/test_sockets.py",
+            "line": 1477,
+            "level": "LOW",
+            "type": "correctness",
+            "description": "`finally` 中对 `client` 的 `await client.aclose()` 可能抛出未预期异常（例如服务器端已关闭或 aclose 自身抛出），会掩盖 try 块中真正的测试失败异常。建议在 finally 中用 suppress(Exception) 包裹，或使用 contextlib.AsyncExitStack 管理客户端生命周期。",
+            "existing_code": "        finally:\n            if client is not None:\n                await client.aclose()"
+          }
+        ],
+        "llm_records": [
+          {
+            "job_id": "eval",
+            "group": "B",
+            "phase": "direct+retrieval",
+            "model": "deepseek-v4.1-flash",
+            "protocol": "anthropic",
+            "prompt_tokens": 1444,
+            "completion_tokens": 1116,
+            "total_tokens": 2560,
+            "latency_ms": 6487,
+            "status": "ok",
+            "error": ""
+          }
+        ],
+        "repo": "agronholm/anyio",
+        "pr_number": 1269
+      }
+    ],
+    "C": [
+      {
+        "findings": [
+          {
+            "file": "pydantic-core/src/input/input_json.rs",
+            "line": 246,
+            "existing_code": "    fn strict_ordered_dict(&self) -> ValMatch<Self::Dict<'_>> {\n        // we allow an object here since otherwise it would be impossible to create an OrderedDict from JSON\n        match self {\n            JsonValue::Object(dict) => Ok(ValidationMatch::strict(dict)),",
+            "level": "LOW",
+            "type": "correctness",
+            "confidence": 0.5,
+            "description": "JSON 输入路径把 JSON object 直接当作 strict OrderedDict 通过（strict 匹配），而 Python 输入路径在 strict 模式下要求实例必须是 collections.OrderedDict。同一次同 strict 语义在不同输入源下行为不一致：JSON 下任意对象都算 strict 通过，Python 下必须显式 OrderedDict。若该差异是有意为之（JSON 无法表达 OrderedDict），建议补充注释到公开文档，否则应统一语义。",
+            "suggestion": "在 ordered_dict 的文档（docs/api/standard_library_types.md 与 core_schema 的 docstring）中明确说明：JSON 输入下任意 object 均可满足 strict ordered-dict；如非有意，改为在 JSON 下也按 lax 处理。",
+            "group": "g0",
+            "source": "llm",
+            "anchor_status": "hunk",
+            "anchored_line": 246
+          },
+          {
+            "file": "pydantic-core/src/input/input_python.rs",
+            "line": 476,
+            "existing_code": "    fn lax_ordered_dict<'a>(&'a self) -> ValMatch<GenericPyMapping<'a, 'py>> {\n        if self.is_instance(get_ordered_dict_type(self.py())?)? {",
+            "level": "INFO",
+            "type": "correctness",
+            "confidence": 0.5,
+            "description": "lax 模式对 Mapping 的接受没有像 mapping/list 那样排除 str/bytes 等标量或特殊序列之外的可迭代类型，只要实现了 cast::<PyMapping> 的任意对象（含自定义 __getitem__ 的类）都会被当作 OrderedDict 接受，与 dict 校验的 lax_mapping 行为可能存在差异。本组 diff 只覆盖了 OrderedDict/dict/Mapping 分支，未看到与 dict 校验（PyDict + PyMapping 且排除 str）完全对齐的处理。",
+            "suggestion": "确认 lax_ordered_dict 与 validate_dict 的 lax_mapping 语义一致（是否排除 str、是否允许非 mapping 的可迭代对象），并在 tests/validators/test_ordered_dict.rs 中补齐对应边界测试。",
+            "group": "g0",
+            "source": "llm",
+            "anchor_status": "hunk",
+            "anchored_line": 476
+          },
+          {
+            "file": "pydantic-core/src/common/ordered_dict.rs",
+            "line": 0,
+            "existing_code": "static ORDERED_DICT_TYPE: PyOnceLock<Py<PyType>> = PyOnceLock::new();\n\n// No PyO3 interface can be provided (similar to https://github.com/PyO3/pyo3/issues/2655)\npub fn get_ordered_dict_type(py: Python<'_>) -> PyResult<&Bound<'_, PyType>> {\n    ORDERED_DICT_TYPE.import(py, \"collections\", \"OrderedDict\")\n}",
+            "level": "INFO",
+            "type": "reliability",
+            "confidence": 0.25,
+            "description": "get_ordered_dict_type 在每次调用（每个 OrderedDict 字段校验）都会走 PyOnceLock::import 查找，在子解释器/多 Python 场景下 PyOnceLock 的 import 是否会跨解释器复用缓存需要确认（对比 frozendict/deque 的实现方式）。若与既有的 get_frozendict_type/get_deque_type 实现一致则只是沿用模式，可忽略。",
+            "suggestion": "对照 pydantic-core/src/common/frozendict.rs 与 deque.rs 的实现保持一致；如既有实现同样使用 PyOnceLock 则无需改动。",
+            "group": "g0",
+            "source": "llm",
+            "anchor_status": "unanchored",
+            "anchored_line": 0
+          },
+          {
+            "file": "pydantic-core/src/validators/ordered_dict.rs",
+            "line": 119,
+            "existing_code": "        let output = PyDict::new(self.py);\n        let mut errors: Vec<ValLineError> = Vec::new();",
+            "level": "LOW",
+            "type": "memory-usage",
+            "confidence": 0.35,
+            "description": "validate 过程中先把所有条目收集到临时 PyDict 再在最后通过 get_ordered_dict_type().call1((output,)) 构造 OrderedDict，等于对输入做了两次完整拷贝（一次写入 PyDict，一次由 OrderedDict 构造器再拷贝）。对超大映射输入（数十万键）会带来额外内存峰值与拷贝开销。当输出键数量巨大时该开销不可忽略。",
+            "suggestion": "若关注超大输入，可直接创建 OrderedDict 并就地 set_item，避免中间 dict 的双重拷贝；或在文档/注释中说明该取舍。",
+            "group": "g1",
+            "source": "llm",
+            "anchor_status": "hunk",
+            "anchored_line": 119
+          },
+          {
+            "file": "pydantic-core/src/serializers/type_serializers/ordered_dict.rs",
+            "line": 152,
+            "existing_code": "                        let state = &mut state.scoped_include_exclude(next_include_exclude);\n                        let value_serialize = PydanticSerializer::new(&value, value_serializer, state);\n                        map.serialize_entry(&key, &value_serialize)?;",
+            "level": "LOW",
+            "type": "correctness",
+            "confidence": 0.125,
+            "description": "serde_serialize 分支未像 dict/frozendict 那样处理 include/exclude 之外的 key 冲突与重复键情形；同时 key 序列化后若为不可哈希/重复的 JSON 字符串，serialize_entry 不会报错，导致 JSON 中出现重复键而静默覆盖。相比之下 PyDict set_item 会被覆盖但保持稳定语义。此为潜在数据丢失点，建议确认与 dict serializer 行为一致。",
+            "suggestion": "对照 dict/frozendict 的 serde 实现确认重复键语义是否一致，必要时补充注释或测试用例。",
+            "group": "g1",
+            "source": "llm",
+            "anchor_status": "unanchored",
+            "anchored_line": 152
+          },
+          {
+            "file": "pydantic/_internal/_validators.py",
+            "line": 0,
+            "existing_code": "-    typing.OrderedDict: collections.OrderedDict,  # noqa: UP006\n-    collections.OrderedDict: collections.OrderedDict,\n-    typing_extensions.OrderedDict: collections.OrderedDict,",
+            "level": "MEDIUM",
+            "type": "correctness-regression",
+            "confidence": 0.25,
+            "description": "本组删除了 MAPPING_ORIGIN_MAP 中 OrderedDict 相关的三个映射项（typing.OrderedDict / collections.OrderedDict / typing_extensions.OrderedDict），并且在同一次变更里移除了 `import typing_extensions`。MAPPING_ORIGIN_MAP 在别处被用于把映射类型归一到具体实现类；移除 collections.OrderedDict 到自身的恒等映射后，凡是原先依赖该表把 OrderedDict 归一为 collections.OrderedDict 的路径（例如 _defaultdict_allowed_default_types 通过该映射推导默认工厂、以及 dict/OrderedDict 的 origin 归一逻辑）都会失去映射，可能退化为未知/Any 处理或抛出 PydanticSchemaGenerationError。需要确认 OrderedDict 的归一逻辑已被其它路径（例如新的 _ordered_dict_schema 分支）完整接管，否则属于行为回归。",
+            "suggestion": "确认 MAPPING_ORIGIN_MAP 的所有调用点对 OrderedDict 仍能得到正确结果；若不能，保留 collections.OrderedDict: collections.OrderedDict 恒等映射（typing.OrderedDict / typing_extensions.OrderedDict 若其 origin 已被解包为 collections.OrderedDict 则可安全删除），并补充针对 DefaultDict[..., OrderedDict[...]] 与 dict/OrderedDict origin 归一的回归测试。",
+            "group": "g2",
+            "source": "llm",
+            "anchor_status": "unanchored",
+            "anchored_line": 0
+          },
+          {
+            "file": "pydantic-core/tests/validators/test_ordered_dict.py",
+            "line": 0,
+            "existing_code": "    v = SchemaValidator(cs.ordered_dict_schema(cs.str_schema(), cs.int_schema(), strict=True))\n    output = v.validate_python(OrderedDict({'a': 1}))\n    assert output == OrderedDict({'a': 1})\n    assert type(output) is OrderedDict\n\n    class DictSubclass(dict):\n        pass",
+            "level": "LOW",
+            "type": "missing-test",
+            "confidence": 0.15,
+            "description": "严格模式测试覆盖了 dict 子类被拒绝，以及 OrderedDict 子类被接受，但没有断言“有序性被保留”这一本 PR 的核心行为在 strict 模式下也成立（test_ordered_dict_order_preserved 已覆盖 strict 但用的是非子类输入）。同时 test_ordered_dict_subclass 只验证了 strict 模式，未覆盖非 strict 下 OrderedDict 子类拷贝后不共享内部结构（move_to_end 后输出顺序正确）的组合。",
+            "suggestion": "在 strict + OrderedDict 子类、以及非 strict + 子类输入上各补一条 move_to_end 后的顺序断言，避免子类路径走回 dict C API 迭代而静默丢失顺序。",
+            "group": "g2",
+            "source": "llm",
+            "anchor_status": "unanchored",
+            "anchored_line": 0
+          },
+          {
+            "file": "tests/types/test_ordered_dict.py",
+            "line": 0,
+            "existing_code": "def test_ordered_dict_order_preserved() -> None:\n    ta = TypeAdapter(OrderedDict[str, int])\n\n    od_value = OrderedDict([('a', 1), ('b', 2), ('c', 3)])\n    od_value.move_to_end('a')",
+            "level": "LOW",
+            "type": "test-coverage",
+            "confidence": 0.25,
+            "description": "新增的顺序保持测试只覆盖了构造后 move_to_end 的单一顺序场景，未覆盖「先插入 b 再插入 a」这类通过不同插入顺序构造出与默认顺序不同的 OrderedDict，也未验证嵌套 OrderedDict 的顺序保持（test_ordered_dict_nested 只断言相等性与 isinstance，未断言子字典的项顺序）。顺序保持是本 PR 的核心语义，覆盖略显不足。",
+            "suggestion": "补充一个用不同插入顺序（如 OrderedDict([('c',3),('a',1),('b',2)])）构造并断言 dump 顺序的用例，并在嵌套用例中对 result['a'] 断言 list(result['a'].items()) 顺序。",
+            "group": "g3",
+            "source": "llm",
+            "anchor_status": "unanchored",
+            "anchored_line": 0
+          },
+          {
+            "file": "tests/types/test_ordered_dict.py",
+            "line": 127,
+            "existing_code": "    assert ta.validate_json('{\"a\": 1}') == OrderedDict({'a': 1})",
+            "level": "LOW",
+            "type": "test-coverage",
+            "confidence": 0.5,
+            "description": "strict 模式测试只覆盖了 OrderedDict 输入被接受、plain dict 被拒绝、以及 JSON 输入被接受三种情况，但未覆盖 strict 模式下接受其他 Mapping 子类（例如 collections.abc.Mapping 的自定义实现）或拒绝 list 等非法输入的行为；错误分支仅断言了 errors()[0]['type']，未校验 loc/msg，弱化了错误信息的回归保护。",
+            "suggestion": "补充对非 dict/非 OrderedDict 输入（如 [('a',1)]）在 strict 下报错的断言，并至少校验一条错误的 loc 字段（如 loc == ()）。",
+            "group": "g3",
+            "source": "llm",
+            "anchor_status": "hunk",
+            "anchored_line": 127
+          }
+        ],
+        "job_id": "eval_C_pydantic_pydantic_13796_1789851914",
+        "repo": "pydantic/pydantic",
+        "pr_number": 13796
+      },
+      {
+        "findings": [
+          {
+            "file": "tests/test_types.py",
+            "line": 2433,
+            "existing_code": "        f: SecretStr = None",
+            "level": "LOW",
+            "type": "weak-test-coverage",
+            "confidence": 0.6,
+            "description": "新增测试仅覆盖非 Optional 注解字段 `f: SecretStr = None`（即把 None 赋给非可选类型）这一种复现形式。真正常见且语义明确的场景是显式可空类型 `SecretStr | None` / `Optional[SecretStr]`，其序列化路径（含 model_dump(mode='json')、嵌套字段）并未被该测试覆盖。",
+            "suggestion": "补充 `f: SecretStr | None`（或 Optional[SecretStr]）字段的用例，并断言 model_dump()、model_dump(mode='json')、model_dump_json() 在 None 与已赋值两种情况下的输出，以验证 unless-none 在可空类型上同样生效。",
+            "group": "g0",
+            "source": "llm",
+            "anchor_status": "hunk",
+            "anchored_line": 2433
+          },
+          {
+            "file": "tests/test_types.py",
+            "line": 2425,
+            "existing_code": "    u = User(name='sam', password='hi')\n    assert u.model_dump()['password'] == 'secret: **********'",
+            "level": "LOW",
+            "type": "weak-test-coverage",
+            "confidence": 0.5,
+            "description": "新测试只验证了 None 分支的输出，未覆盖本次改动在“值非 None”时序列化行为未回归的对照用例（即改动前后 when_used='unless-none' 与 'always' 在非 None 值下结果一致）。缺少反向对照会削弱该回归测试发现意外行为变化的能力。",
+            "suggestion": "在该测试中额外构造 `Model(f=SecretStr('secret'))`（或使用 Optional 字段并赋值），断言 model_dump()/model_dump_json() 仍返回掩码后的 secret 值，确保 unless-none 未影响非 None 序列化。",
+            "group": "g0",
+            "source": "llm",
+            "anchor_status": "fulltext",
+            "anchored_line": 2425
+          }
+        ],
+        "job_id": "eval_C_pydantic_pydantic_13699_1789852057",
+        "repo": "pydantic/pydantic",
+        "pr_number": 13699
+      },
+      {
+        "findings": [
+          {
+            "file": "pydantic/experimental/pipeline.py",
+            "line": 485,
+            "existing_code": "_LENGTH_SCHEMA_TYPES = frozenset({'str', 'bytes', 'list', 'tuple', 'set', 'frozenset', 'dict', 'generator'})",
+            "level": "MEDIUM",
+            "type": "correctness",
+            "confidence": 0.55,
+            "description": "本次将 'bytes' 和 'generator' 加入 _LENGTH_SCHEMA_TYPES，使这些类型改用 core schema 原生 min_length/max_length 约束（不再走 _check_func 回退）。但 generator 的核心 schema（generator_schema）在 pydantic-core 中并不支持 min_length/max_length，把这两个 key 直接塞进 schema dict 依赖 pydantic-core 在编译时静默忽略未知/不支持的字段；一旦 pydantic-core 改为严格校验 schema 键，会直接抛错。同时该行为并未真正对生成器做长度校验，而新增测试 test_len_constraint_on_generator 却断言超长/过短时抛 ValidationError —— 该测试之所以通过是因为 generator 在验证阶段被物化为 list，与注释声称的“generator 原生支持长度约束”不符，容易误导后续维护者。",
+            "suggestion": "确认 pydantic-core 的 generator_schema 是否真正支持 min_length/max_length；若不支持，应从 _LENGTH_SCHEMA_TYPES 中移除 'generator'，让它继续走 _check_func 回退分支，并相应调整测试与注释；若支持，请补充注释说明依赖 pydantic-core 对未知键的容忍行为。",
+            "group": "g0",
+            "source": "llm",
+            "anchor_status": "hunk",
+            "anchored_line": 485
+          },
+          {
+            "file": "pydantic/experimental/pipeline.py",
+            "line": 542,
+            "existing_code": "        if s and s['type'] in _LENGTH_SCHEMA_TYPES:\n            s = s.copy()",
+            "level": "LOW",
+            "type": "correctness",
+            "confidence": 0.35,
+            "description": "原实现的 `assert` 会在调试环境（或直接构造非法 schema 时）对不支持的 core schema 类型触发断言，防止把 min_length/max_length 塞进不支持的 schema。本次删除该断言并以 frozenset 成员判断替代，虽然更简洁，但 _LENGTH_SCHEMA_TYPES 与 pydantic-core 实际支持集合之间的漂移将不再有任何运行时防线（例如 pydantic-core 升级后新增/移除某类型）。",
+            "suggestion": "可考虑在测试中增加对 _LENGTH_SCHEMA_TYPES 与 pydantic-core 支持的 schema 类型集合一致性的校验，或保留一个轻量断言/注释说明该集合的来源与维护方式。",
+            "group": "g0",
+            "source": "llm",
+            "anchor_status": "hunk",
+            "anchored_line": 542
+          },
+          {
+            "file": "tests/test_pipeline.py",
+            "line": 255,
+            "existing_code": "def test_len_constraint_on_generator() -> None:\n    ta = TypeAdapter[Iterable[int]](Annotated[Iterable[int], validate_as(Iterable[int]).constrain(Len(2, 3))])  # pyright: ignore[reportCallIssue, reportArgumentType]",
+            "level": "LOW",
+            "type": "missing-test",
+            "confidence": 0.4,
+            "description": "该测试用 `validate_as(Iterable[int])` 覆盖了“generator”长度约束路径，但 Iterable[int] 映射到的核心 schema 未必是 'generator' 类型（很可能是 list/generator 视具体实现而定）。若实际映射到的不是 'generator'，则 _LENGTH_SCHEMA_TYPES 中的 'generator' 分支并未被真正覆盖，测试给出虚假的覆盖率信心。",
+            "suggestion": "在测试中先断言 pipeline 生成的 core_schema 的 'type' 为 'generator'（或直接使用 validate_as(Generator[int, None, None]) 之类的写法），确保测到的是目标分支。",
+            "group": "g0",
+            "source": "llm",
+            "anchor_status": "hunk",
+            "anchored_line": 255
+          }
+        ],
+        "job_id": "eval_C_pydantic_pydantic_13659_1789852104",
+        "repo": "pydantic/pydantic",
+        "pr_number": 13659
+      },
+      {
+        "findings": [
+          {
+            "file": "src/anyio/_core/_synchronization.py",
+            "line": 295,
+            "existing_code": "        if self._lock.statistics().owner != get_current_task():",
+            "level": "INFO",
+            "type": "performance",
+            "confidence": 0.35,
+            "description": "新的 _check_acquired() 通过 self._lock.statistics() 来获取持有者，而 Lock.statistics() 会构造并返回一个 LockStatistics 对象（含统计快照），相比原先直接读取 self._owner_task 字段的 O(1) 属性访问，引入了额外的对象分配与方法调用开销。notify()/notify_all()/wait() 都会调用 _check_acquired()，属于同步原语热路径，理论上会带来轻微性能开销。",
+            "suggestion": "若统计接口本身开销可接受可保留；否则可考虑保留轻量的 owner 记录或提供不构造统计对象的内部 owner 访问方式。",
+            "group": "g0",
+            "source": "llm",
+            "anchor_status": "hunk",
+            "anchored_line": 295
+          },
+          {
+            "file": "src/anyio/_core/_synchronization.py",
+            "line": 295,
+            "existing_code": "        if self._lock.statistics().owner != get_current_task():",
+            "level": "INFO",
+            "type": "correctness",
+            "confidence": 0.3,
+            "description": "_check_acquired() 现在依赖 Lock.statistics().owner 来判断当前任务是否持有锁。这要求 Lock 实现始终维护准确的 owner 信息（包括通过 acquire_nowait、被取消或异常释放等路径）。若某个 Lock 后端在未认证/被取消场景下的 owner 记录与真实持有状态存在偏差，Condition 的校验会误判。需确认各后端 Lock.statistics().owner 语义与 get_current_task() 返回的 TaskInfo 一致。",
+            "suggestion": "确认所有 Lock 后端（asyncio/trio 等）在 statistics().owner 中返回与 get_current_task() 同一标识的 TaskInfo，并补充针对非阻塞获取与异常释放路径的测试。",
+            "group": "g0",
+            "source": "llm",
+            "anchor_status": "hunk",
+            "anchored_line": 295
+          }
+        ],
+        "job_id": "eval_C_agronholm_anyio_1320_1789852185",
+        "repo": "agronholm/anyio",
+        "pr_number": 1320
+      },
+      {
+        "findings": [
+          {
+            "file": "src/anyio/_backends/_asyncio.py",
+            "line": 929,
+            "existing_code": "        spawn_scope = task_status._spawn_scope if task_status is not None else None\n        handle = TaskHandle(coro, name, cancel_scope=spawn_scope)",
+            "level": "MEDIUM",
+            "type": "resource-lifecycle",
+            "confidence": 0.35,
+            "description": "start() 现在为每次调用创建一个新的 CancelScope() 并交给 TaskHandle。当任务在调用 started() 之前就异常退出或未调用 started() 时，task_done 走的是 `elif task_status_future is not None and not task_status_future.done()` 分支（把 RuntimeError 设置到 future），此时 spawn_scope 从未被 _reparent 到目标组，也从未进入 task group 的 cancel scope 树——但它已作为 handle 的 cancel_scope 被 __enter__/__exit__ 使用。如果该任务被取消或异常退出时 CancelScope.__exit__ 返回 True（吞掉异常），异常会被静默抑制，而该 scope 也不在任何父 scope 的子列表中，外部取消无法传播到它。需要确认 spawn_scope 在未 reparent 的情况下仍能正确传播/上报取消与异常。",
+            "suggestion": "在 task_done 中显式处理 spawn_scope 未被 reparent 的情况（例如确保其异常被上报到 task group，或在任务结束时将其归还/清理），并补充“spawned 任务在 started() 之前失败”的测试。",
+            "group": "g0",
+            "source": "llm",
+            "anchor_status": "hunk",
+            "anchored_line": 929
+          },
+          {
+            "file": "src/anyio/_backends/_asyncio.py",
+            "line": 929,
+            "existing_code": "        spawn_scope = task_status._spawn_scope if task_status is not None else None\n        handle = TaskHandle(coro, name, cancel_scope=spawn_scope)",
+            "level": "LOW",
+            "type": "incorrect-behavior",
+            "confidence": 0.3,
+            "description": "create_task() 走 _spawn 时 task_status 为 None，spawn_scope 为 None，TaskHandle 会自行创建 CancelScope；而 start() 路径显式传入新建的 CancelScope()，两条路径行为不一致但仍共享 _spawn 的 task_done 清理逻辑（task_done 用 task_state.cancel_scope 移除任务，而 self._tasks.remove 针对 task group 自己的集合）。新增的 initial_scope 可能是调用者的 cancel scope（而非 self.cancel_scope），意味着任务最初的登记 scope 与 task group 的 self._tasks 不再一一对应，若有代码假设 `task_state.cancel_scope is self.cancel_scope` 会失效。",
+            "suggestion": "核对所有依赖「spawn 任务必属于 self.cancel_scope」的调用点，确认 _task_states 与 self._tasks 的移除逻辑在 initial_scope 为调用者 scope 时仍然自洽。",
+            "group": "g0",
+            "source": "llm",
+            "anchor_status": "hunk",
+            "anchored_line": 929
+          },
+          {
+            "file": "tests/test_taskgroups.py",
+            "line": 1951,
+            "existing_code": "        th = tg.start_soon(outside_task)\n        await anyio.wait_all_tasks_blocked()\n        inner_tg.cancel()\n        ev.set()",
+            "level": "LOW",
+            "type": "missing-test",
+            "confidence": 0.4,
+            "description": "新增测试只覆盖了「started() 之前不取消、started() 之后第一个检查点被取消、返回值正确」的正向场景，但本次改动引入的关键新分支——started() 的 future 已 cancelled（调用方被取消）时直接 return、以及调用者是无 _task_states 条目的非托管任务时 initial_scope 回退到组自身 scope——都没有测试覆盖。",
+            "suggestion": "补充两组测试：(1) start() 的调用方在子任务调用 started() 之前被取消，断言子任务不 reparent 且无异常泄漏；(2) 从非托管任务（无 task state）调用 start() 的行为。",
+            "group": "g0",
+            "source": "llm",
+            "anchor_status": "hunk",
+            "anchored_line": 1951
+          }
+        ],
+        "job_id": "eval_C_agronholm_anyio_1198_1789852279",
+        "repo": "agronholm/anyio",
+        "pr_number": 1198
+      },
+      {
+        "findings": [
+          {
+            "file": "tests/test_taskgroups.py",
+            "line": 0,
+            "existing_code": "    def task_factory(\n        loop: asyncio.AbstractEventLoop,\n        coro: Coroutine[Any, Any, Any],\n        **kwargs: Any,\n    ) -> asyncio.Task[Any]:\n        nonlocal wrapper_coro\n        wrapper_coro = coro\n        if eager:\n            try:\n                coro.send(None)\n            except StopIteration:\n                pass\n\n        raise expected_error",
+            "level": "HIGH",
+            "type": "test-coverage-gap",
+            "confidence": 0.425,
+            "description": "新增单测通过 `loop.set_task_factory(task_factory)` 注入一个普通 Python 函数作为 task factory，但被测代码只在该 factory 满足 `getattr(factory, \"__code__\", None) is _eager_task_factory_code`（即传入了 asyncio.create_eager_task_factory 包装后的对象）时才走自定义构造器分支：否则进入 `else: task = loop.create_task(...)`。`task_factory` 是普通函数，其 `__code__` 不等于 `_eager_task_factory_code`，因此本测试无论 `eager` 参数取 True/False 都只会覆盖 `loop.create_task` 失败这一条路径，`eager` 参数实际失效，被修复的“自定义 task 构造器失败”分支完全没有被测试覆盖。对照同文件 test_eager_task_factory（第 2072-2075 行）可见正确写法是 `loop.set_task_factory(asyncio.create_eager_task_factory(create_custom_task))`。",
+            "suggestion": "在 eager=True 时使用 `loop.set_task_factory(asyncio.create_eager_task_factory(lambda *a, **kw: (_ for _ in ()).throw(expected_error)))` 之类真正的 eager factory（Python>=3.12），或直接复用 test_eager_task_factory 的构造方式并让其抛出异常，从而真正走到 `custom_task_constructor(wrapper_coro, ...)` 失败分支；同时为 eager 用例加上 `sys.version_info < (3, 12)` 的 skipif，否则两个 parametrize 组合跑的是同一段代码，无法验证修复。",
+            "group": "g0",
+            "source": "llm",
+            "anchor_status": "unanchored",
+            "anchored_line": 0
+          },
+          {
+            "file": "tests/test_taskgroups.py",
+            "line": 159,
+            "existing_code": "        try:\n            tg.create_task(task_func_coro)\n        except RuntimeError as exc:\n            assert exc is expected_error\n        else:\n            pytest.fail(\"TaskGroup.start_soon() did not propagate the error\")",
+            "level": "MEDIUM",
+            "type": "test-reliability",
+            "confidence": 0.4,
+            "description": "测试在 `async with create_task_group()` 体内创建任务失败后，仍断言 `tg.create_task` 恰好抛出 `RuntimeError`。当 `suspend=True` 时 `task_func` 会在 `await checkpoint()` 处挂起，此时外层任务组尚未退出，用 `except RuntimeError: ... else: pytest.fail(...)` 捕获会使断言在异常被吞并/包装为 ExceptionGroup 时直接漏检（`except RuntimeError` 不匹配 ExceptionGroup 时异常会穿透，导致测试以非预期异常失败而非明确断言）；同时被断言为“已关闭”的 `task_func_coro` 若因 eager 前置 send 已推进到 checkpoint 挂起点，`getcoroutinestate(task_func_coro) is CORO_CLOSED` 的条件也只在 `wrapper_coro.close()` 生效时才成立，两处断言相互依赖，任一失败都会互相掩盖真实原因。",
+            "suggestion": "用 `with pytest.raises(RuntimeError, match=...) as exc_info:` 明确断言异常类型与身份（`exc_info.value is expected_error`），并将 coro 关闭状态断言拆分，对 eager 用例单独验证 `custom_task_constructor` 被调用后的路径，避免两种状态耦合。",
+            "group": "g0",
+            "source": "llm",
+            "anchor_status": "hunk",
+            "anchored_line": 159
+          }
+        ],
+        "job_id": "eval_C_agronholm_anyio_1275_1789852360",
+        "repo": "agronholm/anyio",
+        "pr_number": 1275
+      },
+      {
+        "findings": [],
+        "job_id": "eval_C_agronholm_anyio_1223_1789852417",
+        "repo": "agronholm/anyio",
+        "pr_number": 1223
+      },
+      {
+        "findings": [
+          {
+            "file": "src/anyio/_backends/_asyncio.py",
+            "line": 0,
+            "existing_code": "                    try:\n                        self.loop.call_soon_threadsafe(\n                            self._report_result, future, result, exception\n                        )\n                    except RuntimeError:\n                        if not self.loop.is_closed():\n                            raise\n\n                    del result, exception",
+            "level": "MEDIUM",
+            "type": "correctness",
+            "confidence": 0.25,
+            "description": "新逻辑用「捕获 RuntimeError 后再判断 loop 是否关闭」替换了原来的「先判断 is_closed 再调用」，语义上更稳健（避免 TOCTOU），但吞掉 RuntimeError 的分支没有任何日志或注释说明原因，属于静默吞错：当 loop 关闭导致 call_soon_threadsafe 失败时，_report_result 永远不会被调用，future 既不会被 set_result 也不会被 set_exception；若该 future 仍被等待，调用方会一直挂起或只能等到取消。同时若 RuntimeError 是由其它原因（例如传给 call_soon_threadsafe 的 callback 不可调用等）触发且 loop 恰好已关闭，错误会被一并吞掉，难以排查。",
+            "suggestion": "在 except 分支中至少加一条注释说明「loop 已关闭，结果无法投递，future 由取消/GC 处理」；若可行，在 loop 已关闭时显式把异常/取消传递给 future（如 future 未 done 时尝试 set_exception），避免 future 永久悬挂，并便于后续定位。",
+            "group": "g0",
+            "source": "llm",
+            "anchor_status": "unanchored",
+            "anchored_line": 0
+          },
+          {
+            "file": "tests/test_to_thread.py",
+            "line": 0,
+            "existing_code": "    try:\n        anyio.run(main, backend=\"asyncio\")\n    finally:\n        release_worker.set()\n        release_result_report.set()\n\n    worker_threads[0].join(5)\n    assert not worker_threads[0].is_alive()",
+            "level": "MEDIUM",
+            "type": "test-robustness",
+            "confidence": 0.2,
+            "description": "回归测试在 anyio.run 返回后再 join 工作线程，但 anyio.run 内部会先关闭事件循环并调用 shutdown_default_executor / 关闭 worker 线程；此时 release_result_report 尚未 set（等待结果上报的 worker 线程仍阻塞在 5 秒的 wait 中）。虽然 finally 与 join 会兜底释放，但测试依赖 5 秒超时窗口，一旦 CI 机器负载高导致线程未在 join(5) 内结束，断言 `not worker_threads[0].is_alive()` 会以超时（而非真正回归）方式失败，属于潜在 flaky。",
+            "suggestion": "在 anyio.run 结束后（或 finally 中）先释放 release_result_report 再退出，尽量缩短依赖固定超时的窗口；或在断言前用更长的等待/轮询并给出明确失败信息，避免误报为功能回归。",
+            "group": "g0",
+            "source": "llm",
+            "anchor_status": "unanchored",
+            "anchored_line": 0
+          }
+        ],
+        "job_id": "eval_C_agronholm_anyio_1279_1789852517",
+        "repo": "agronholm/anyio",
+        "pr_number": 1279
+      },
+      {
+        "findings": [],
+        "error": "Invalid review job transition: completed -> completed",
+        "repo": "agronholm/anyio",
+        "pr_number": 1169
+      },
+      {
+        "findings": [],
+        "job_id": "eval_C_agronholm_anyio_1269_1789852731",
+        "repo": "agronholm/anyio",
+        "pr_number": 1269
+      }
+    ],
+    "D": [
+      {
+        "findings": [
+          {
+            "file": "pydantic-core/src/input/input_python.rs",
+            "line": 464,
+            "existing_code": "    fn strict_ordered_dict<'a>(&'a self) -> ValMatch<GenericPyMapping<'a, 'py>> {\n        if self.is_instance(get_ordered_dict_type(self.py())?)? {",
+            "level": "MEDIUM",
+            "type": "correctness",
+            "confidence": 0.4,
+            "description": "strict_ordered_dict 使用 is_instance 判断，因此 OrderedDict 的子类实例（严格模式下本应只接受 OrderedDict 本身）也会被当作严格匹配通过；当子类重写了映射协议方法时可能导致后续取值行为与预期不一致。",
+            "suggestion": "若严格模式语义要求精确类型，可参考 frozendict 的实现改为类型相等（exact type）判断，或至少在文档中明确子类是否允许。",
+            "group": "g0",
+            "source": "llm",
+            "anchor_status": "hunk",
+            "anchored_line": 464
+          },
+          {
+            "file": "pydantic-core/src/input/input_json.rs",
+            "line": 246,
+            "existing_code": "    fn strict_ordered_dict(&self) -> ValMatch<Self::Dict<'_>> {\n        // we allow an object here since otherwise it would be impossible to create an OrderedDict from JSON",
+            "level": "LOW",
+            "type": "behavior-inconsistency",
+            "confidence": 0.35,
+            "description": "JSON 输入在严格模式下也接受任意 Object 并映射为 OrderedDict，而 Python 输入严格模式只接受 OrderedDict 实例；同一 schema 在不同输入源下严格语义不一致（注释已说明原因，但缺少测试或文档提示）。",
+            "suggestion": "在 docs/api/standard_library_types.md 的 Strictness 段落中补充 JSON 输入下严格模式的行为说明，确保用户可预期。",
+            "group": "g0",
+            "source": "llm",
+            "anchor_status": "hunk",
+            "anchored_line": 246
+          },
+          {
+            "file": "pydantic-core/src/validators/ordered_dict.rs",
+            "line": 117,
+            "existing_code": "        // Items are first collected into a `dict` (which preserves insertion order), and the\n        // `OrderedDict` is built from it at the end.\n        let output = PyDict::new(self.py);",
+            "level": "MEDIUM",
+            "type": "performance",
+            "confidence": 0.45,
+            "description": "校验结束时把已经收集好的 PyDict 再整体拷贝一次来构造 OrderedDict（`get_ordered_dict_type(self.py)?.call1((output,))`，见第 177 行）。对于大 dict/OrderedDict 输入，这会造成一次 O(n) 的额外哈希表复制与内存分配，而序列化侧的 OrderedDictSerializer 也采用同样的「先构建 PyDict 再拷贝」策略。dict 校验器（dict.rs）直接返回 PyDict 无此开销，所以这是 ordered-dict 独有的性能退化路径。建议：在确认输入本身就是 OrderedDict（validate_ordered_dict 命中的映射）且无过滤/改写需求时，直接用 PyOrderedDict::new 配合 set_item 逐项写入，避免最终整体拷贝；或至少在文档/注释中说明该 O(n) 开销。",
+            "suggestion": "",
+            "group": "g1",
+            "source": "llm",
+            "anchor_status": "hunk",
+            "anchored_line": 117
+          },
+          {
+            "file": "pydantic-core/src/validators/ordered_dict.rs",
+            "line": 79,
+            "existing_code": "        let strict = state.strict_or(self.strict);\n        let dict = input.validate_ordered_dict(strict)?.unpack(state);",
+            "level": "MEDIUM",
+            "type": "correctness",
+            "confidence": 0.4,
+            "description": "OrderedDictValidator 通过 validate_ordered_dict 获取输入，但该方法的实现分散在各 Input 实现中（input_python.rs / input_json.rs / input_string.rs），本次变更仅在 input_string.rs 补了 strict_ordered_dict，需确认 input_python.rs、input_json.rs 也补齐了 lax/strict 两种语义（JSON 侧通常应宽松接受对象）。若某一实现未实现或语义与 dict 不一致（例如 lax 模式下不接受普通 dict），会导致 OrderedDict 校验行为与 DictValidator 不一致。请对照 diff 中其它输入文件的 validate_ordered_dict 实现逐一确认，并补充跨输入类型的测试覆盖（Python 对象输入、JSON 输入、字符串/CSV 输入）。",
+            "suggestion": "",
+            "group": "g1",
+            "source": "llm",
+            "anchor_status": "hunk",
+            "anchored_line": 79
+          },
+          {
+            "file": "pydantic/_internal/_validators.py",
+            "line": 437,
+            "existing_code": "    collections.OrderedDict: collections.OrderedDict,\n}",
+            "level": "MEDIUM",
+            "type": "correctness-removal",
+            "confidence": 0.4,
+            "description": "从 MAPPING_ORIGIN_MAP 中删除了 typing.OrderedDict、collections.OrderedDict、typing_extensions.OrderedDict 三个映射项。该映射表在 _generate_schema.py:661 被使用（mapped_origin = MAPPING_ORIGIN_MAP[tp]），用于将 typing 的 Mapping 派生类型归一化为具体实现类。测试 test_schema_functions.py 中仍然存在对 collections.OrderedDict 的插入顺序校验（test_base64 用例），删掉这些映射后需要确认所有仍会被 MAPPING_ORIGIN_MAP 索引的 OrderedDict 相关路径已被 ordered_dict_schema 分支完全覆盖；否则一旦还有代码路径依赖该 map 查 OrderedDict 会直接 KeyError。",
+            "suggestion": "确认 _generate_schema.py 中所有涉及 OrderedDict 的分支现在都走 _ordered_dict_schema 而不再经过 MAPPING_ORIGIN_MAP 查表；如仍有间接调用，应保留 map 条目或在查表处处理 KeyError。",
+            "group": "g2",
+            "source": "llm",
+            "anchor_status": "hunk",
+            "anchored_line": 437
+          },
+          {
+            "file": "tests/types/test_ordered_dict.py",
+            "line": 124,
+            "existing_code": "    assert exc_info.value.errors()[0]['type'] == 'ordered_dict_type'",
+            "level": "INFO",
+            "type": "missing-test-assertion",
+            "confidence": 0.3,
+            "description": "test_ordered_dict_strict 断言错误类型时报（assert exc_info.value.errors()[0]['type'] == 'ordered_dict_type'）时使用了完整 errors()（含 url），而文件其它测试用 errors(include_url=False)，风格不一致；更重要的是 strict 模式下 dict 输入报错类型断言较宽松，未校验错误消息与 loc，同文件新增的测试（test_ordered_dict、test_constrained_ordered_dict）也仅断言 errors()[0]['type']。整体断言强度偏低，属于可改进项而非缺陷。",
+            "suggestion": "建议对新增的 strict/constrained 测试同时断言 loc 与 url 无关信息，统一使用 errors(include_url=False) 以提升回归捕捉能力。",
+            "group": "g3",
+            "source": "llm",
+            "anchor_status": "hunk",
+            "anchored_line": 124
+          }
+        ],
+        "job_id": "eval_D_pydantic_pydantic_13796_1789852825",
+        "repo": "pydantic/pydantic",
+        "pr_number": 13796
+      },
+      {
+        "findings": [
+          {
+            "file": "pydantic/types.py",
+            "line": 1798,
+            "existing_code": "                when_used='unless-none',",
+            "level": "LOW",
+            "type": "correctness/consistency",
+            "confidence": 0.35,
+            "description": "本次修复将 _SecretField 的字段级序列化器改为 when_used='unless-none'，但同一个类 _SecretField 中的类级 __pydantic_serializer__（第 1808-1816 行）仍为 when_used='always'。两处使用相同的 _serialize_secret_field 函数，对 None 的处理语义不一致：字段 schema 路径会跳过 None 序列化，而 serialize_as_any / TypeAdapter(Any) 等经由类级序列化器的路径仍会以 always 调用 _serialize_secret_field。若该路径遇到 None 值，_serialize_secret_field 内部会执行 value.get_secret_value() 而抛出 AttributeError（或继续产生非预期的 ''）。建议确认该路径是否也需要改为 'unless-none'，或增加断言/测试覆盖 as-any 场景下 None 的行为。",
+            "suggestion": "确认类级 __pydantic_serializer__ 的 when_used 是否应同步改为 'unless-none'；若保持不变，请在 _serialize_secret_field 中显式处理 None 以防 AttributeError，并补充 serialize_as_any 下的测试。",
+            "group": "g0",
+            "source": "llm",
+            "anchor_status": "hunk",
+            "anchored_line": 1798
+          },
+          {
+            "file": "tests/test_types.py",
+            "line": 2435,
+            "existing_code": "    assert Model().model_dump() == {'f': None}\n    assert Model().model_dump_json() == '{\"f\":null}'",
+            "level": "INFO",
+            "type": "missing-test",
+            "confidence": 0.4,
+            "description": "新增测试仅覆盖顶层 model_dump()/model_dump_json() 对 None 的处理，未覆盖 model_dump(mode='json')、serialize_as_any=True 以及嵌套模型（含 Optional[SecretStr] 字段）等序列化路径。鉴于本次修改涉及序列化 when_used 语义，建议补充这些路径的断言以防回归。",
+            "suggestion": "在 test_secret_str_none 中追加 model_dump(mode='json')、serialize_as_any=True 及嵌套/Union 场景的断言。",
+            "group": "g0",
+            "source": "llm",
+            "anchor_status": "hunk",
+            "anchored_line": 2435
+          }
+        ],
+        "job_id": "eval_D_pydantic_pydantic_13699_1789852950",
+        "repo": "pydantic/pydantic",
+        "pr_number": 13699
+      },
+      {
+        "findings": [
+          {
+            "file": "pydantic/experimental/pipeline.py",
+            "line": 485,
+            "existing_code": "_LENGTH_SCHEMA_TYPES = frozenset({'str', 'bytes', 'list', 'tuple', 'set', 'frozenset', 'dict', 'generator'})",
+            "level": "INFO",
+            "type": "correctness",
+            "confidence": 0.35,
+            "description": "本次改动将 `min_length`/`max_length` 原生约束的作用范围从 `str/list/tuple/set/frozenset/dict` 扩展到 `bytes` 与 `generator`，同时移除了原有的 `assert` 自检（该 assert 与 if 条件完全等价，属冗余断言，删除本身合理）。但需确认 core schema 侧的 `bytes_schema`/`generator_schema` 确实原生支持 `min_length`/`max_length`，且对 `generator` 施加长度约束时语义正确（generator 长度约束需要消费迭代器，可能改变惰性语义或产生额外开销）。建议确认 pydantic-core 层对 generator 长度约束的实现方式，避免与惰性求值语义冲突。",
+            "suggestion": "确认 `generator_schema` 的 min_length/max_length 实现语义（是否消费/缓存元素），必要时对 generator 单独说明或在文档中标注其代价。",
+            "group": "g0",
+            "source": "llm",
+            "anchor_status": "hunk",
+            "anchored_line": 485
+          },
+          {
+            "file": "pydantic/experimental/pipeline.py",
+            "line": 550,
+            "existing_code": "            def check_len(v: Any) -> bool:\n                len_v = len(v)\n                if max_len is not None:\n                    return min_len <= len_v <= max_len\n                return min_len <= len_v",
+            "level": "INFO",
+            "type": "correctness",
+            "confidence": 0.25,
+            "description": "fallback 分支的 `check_len` 定义被缩进到 `else` 块内（原来定义在 if 之外始终生效），逻辑上更清晰。但要注意：当 schema 类型在 `_LENGTH_SCHEMA_TYPES` 中但 schema 本身不支持长度约束（如 transform 之后）时会走 else 分支，此时依赖 `len(v)`；若 `v` 无 `__len__` 会抛 TypeError 而非 ValidationError。该问题原逻辑同样存在，本次仅重构，非新增缺陷，仅作提示。",
+            "suggestion": "如担心被检查值无 `__len__`，可在 check_len 内捕获 TypeError 并转为校验失败信息。",
+            "group": "g0",
+            "source": "llm",
+            "anchor_status": "fulltext",
+            "anchored_line": 550
+          }
+        ],
+        "job_id": "eval_D_pydantic_pydantic_13659_1789852996",
+        "repo": "pydantic/pydantic",
+        "pr_number": 13659
+      },
+      {
+        "findings": [
+          {
+            "file": "src/anyio/_core/_synchronization.py",
+            "line": 295,
+            "existing_code": "        if self._lock.statistics().owner != get_current_task():",
+            "level": "MEDIUM",
+            "type": "correctness/performance",
+            "confidence": 0.5,
+            "description": "_check_acquired() 现在改为调用 self._lock.statistics().owner 来判断锁归属。Lock.statistics() 在每个后端都会构造一个新的 LockStatistics（及可能的内部对象）并每次重新组装数据；而 notify() / notify_all() / wait() 每次都会调用 _check_acquired()，wait() 在循环、notify 在热路径上会反复触发，属于新增的对象分配与间接调用开销。原实现直接比较缓存的 self._owner_task 是 O(1) 无分配。",
+            "suggestion": "可考虑在 Condition 内保留一个轻量缓存或在 Lock 上暴露 owner 属性，避免热路径上的 statistics() 对象构造；若维持现状，建议确认 Lock.statistics() 在各后端均为纯字段读取、无副作用。",
+            "group": "g0",
+            "source": "llm",
+            "anchor_status": "hunk",
+            "anchored_line": 295
+          },
+          {
+            "file": "src/anyio/_core/_synchronization.py",
+            "line": 280,
+            "existing_code": "        self._lock = lock or Lock()",
+            "level": "MEDIUM",
+            "type": "correctness",
+            "confidence": 0.5,
+            "description": "改用 self._lock.statistics().owner 判断归属，而 LockStatistics.owner 的语义依赖各后端实现：例如 anyio 的 LockStatistics.owner 在部分后端被文档描述为“the task currently holding the lock, or an arbitrary object if borrowed”，且某些后端在锁未被持有时 owner 可能返回调用方/最近持有者而非 None。若某个后端的 owner 与 get_current_task() 的可比较性不一致（例如返回 borrowed 的任意对象、或返回 TaskInfo 但 id/签名不一致），_check_acquired() 会产生误判（既可能误报 RuntimeError，也可能漏检）。原 _owner_task 由条件自身记录，语义明确。",
+            "suggestion": "请确认所有后端（asyncio/trio/uvloop）Lock.statistics().owner 在未持有时为 None、持有时等于 get_current_task()；如有不一致，应改为在 Lock 上提供明确的 owner 查询接口，或将 _owner_task 保留并在共享锁场景下于 acquire 路径同步。",
+            "group": "g0",
+            "source": "llm",
+            "anchor_status": "fulltext",
+            "anchored_line": 280
+          },
+          {
+            "file": "tests/test_synchronization.py",
+            "line": 442,
+            "existing_code": "    async def test_notify_with_shared_lock(self) -> None:\n        lock = Lock()\n        condition = Condition(lock)\n        async with lock:\n            condition.notify()\n            condition.notify_all()",
+            "level": "LOW",
+            "type": "missing-test",
+            "confidence": 0.5,
+            "description": "新增测试 test_notify_with_shared_lock 中先 condition.notify() 再 condition.notify_all()，但 _waiters 为空，notify() 走的是“无可通知者”的早退路径；同时该用例只覆盖循环体内 popleft 前的 _check_acquired，未验证真正的“通过外部 Lock 持有后 notify 能唤醒等待者”的行为（例如另起任务 wait 后再由持有外部锁的任务 notify）。regression 场景（#1319）的核心是能真正唤醒等待者，当前用例对该路径覆盖不足。",
+            "suggestion": "补充一个端到端用例：创建等待者任务 await condition.wait()，然后以 `async with lock:` 持有外部锁并调用 notify()，断言等待者被唤醒并重新获得锁。",
+            "group": "g0",
+            "source": "llm",
+            "anchor_status": "hunk",
+            "anchored_line": 442
+          },
+          {
+            "file": "tests/test_synchronization.py",
+            "line": 461,
+            "existing_code": "    async def test_notify_after_release(self) -> None:\n        condition = Condition()\n        await condition.acquire()\n        condition.release()",
+            "level": "INFO",
+            "type": "missing-test",
+            "confidence": 0.5,
+            "description": "本次将 Condition 对锁归属的判定从自身缓存的 _owner_task 改为 lock.statistics().owner，并新增了“未持有锁时 notify/notify_all 抛错”的测试，但没有测试 acquire_nowait() 路径下的 _check_acquired 行为，也没有测试通过 condition.acquire_nowait() 获取后 notify 是否正常。原实现中 acquire_nowait() 也会同步 _owner_task，如今该同步逻辑被移除，若统计信息在某些后端的 nowait 路径上未及时更新，则该组合行为缺少回归保护。",
+            "suggestion": "增加 test_notify_after_acquire_nowait 覆盖 `condition.acquire_nowait()` 后 notify/notify_all 正常工作，确保 nowait 路径下 statistics().owner 也能正确反映归属。",
+            "group": "g0",
+            "source": "llm",
+            "anchor_status": "hunk",
+            "anchored_line": 461
+          }
+        ],
+        "job_id": "eval_D_agronholm_anyio_1320_1789853077",
+        "repo": "agronholm/anyio",
+        "pr_number": 1320
+      },
+      {
+        "findings": [
+          {
+            "file": "src/anyio/_backends/_asyncio.py",
+            "line": 650,
+            "existing_code": "    def _reparent(self, new_parent: CancelScope) -> None:",
+            "level": "HIGH",
+            "type": "missing-validation",
+            "confidence": 0.3,
+            "description": "新增的 CancelScope._reparent() 直接修改 _parent_scope 且未做任何校验/加锁，也未使用上下文感知：它在 _child_scopes.discard/add 之外没有处理 self._tasks 的迁移。_reparent 只移动了 scope 的父子链，但没有把 spawn_scope._tasks 中的任务同样迁移/仍保留在原 _tasks 集合；如果 spawn_scope 之前已被加入某个父作用域的 _tasks（见 _spawn 中 initial_scope._tasks.add(task)），reparent 后原父作用域的 _tasks 已不含该任务，而任务仍由该 scope 托管，CancelledError 传递在两个作用域之间可能丢失或重复。",
+            "suggestion": "在 _reparent 中一并显式处理任务归属（例如注释说明 _tasks 集合的语义，或从旧父作用域的 _tasks 迁移相关条目），并补齐单元测试覆盖 reparent 后取消传递行为。",
+            "group": "g0",
+            "source": "llm",
+            "anchor_status": "hunk",
+            "anchored_line": 650
+          },
+          {
+            "file": "src/anyio/_backends/_asyncio.py",
+            "line": 764,
+            "existing_code": "        task = cast(asyncio.Task, current_task())\n        _task_states[task].parent_id = self._parent_id\n        if self._future.done():",
+            "level": "MEDIUM",
+            "type": "keyerror",
+            "confidence": 0.2,
+            "description": "started() 中直接对 _task_states[task] 下标赋值，未做存在性检查。若在某条路径下当前任务没有 TaskState 条目（例如通过第三方或非 anyio 方式驱动该协程），会抛出 KeyError 而不是给出明确错误信息。",
+            "suggestion": "使用 _task_states.get(task) 并显式处理缺失情况，或补充断言与清晰报错。",
+            "group": "g0",
+            "source": "llm",
+            "anchor_status": "fulltext",
+            "anchored_line": 764
+          },
+          {
+            "file": "src/anyio/_backends/_asyncio.py",
+            "line": 773,
+            "existing_code": "        self._future.set_result(value)\n        self._spawn_scope._reparent(self._target_scope)",
+            "level": "MEDIUM",
+            "type": "resource-leak",
+            "confidence": 0.3,
+            "description": "TaskGroup.start() 中为每个 start 调用新建 CancelScope() 作为 spawn_scope，但若任务从未调用 started()（或在 started() 之前就失败/被取消），该 spawn_scope 并不会被 _reparent 挂到任何父作用域，也没有任何清理逻辑移除其引用；同时 _spawn 里 initial_scope._tasks.add(task)（可能是调用者的作用域）在任务结束时不一定会移除该 task 条目，长期运行的程序存在作用域与任务引用残留（内存泄漏）风险。",
+            "suggestion": "确保 spawn_scope 与 initial_scope._tasks 在任务完成/未 started 的路径上被正确清理，并补充相应测试。",
+            "group": "g0",
+            "source": "llm",
+            "anchor_status": "fulltext",
+            "anchored_line": 773
+          },
+          {
+            "file": "tests/test_taskgroups.py",
+            "line": 1910,
+            "existing_code": "async def test_start_not_cancelled_before_started_by_tg() -> None:",
+            "level": "LOW",
+            "type": "missing-test",
+            "confidence": 0.4,
+            "description": "本次修改引入了多条重要分支（started() 重复调用抛 RuntimeError、future 已 done 且 cancelled 时直接 return、调用者为 unmanaged task 时回退到 self.cancel_scope、_reparent 在父作用域已被取消时重启取消投递），但新增测试只覆盖了主路径，未覆盖这些边界分支。",
+            "suggestion": "补充针对 started() 前后取消时序、重复 started()、无 TaskState 的调用者等场景的测试。",
+            "group": "g0",
+            "source": "llm",
+            "anchor_status": "hunk",
+            "anchored_line": 1910
+          }
+        ],
+        "job_id": "eval_D_agronholm_anyio_1198_1789853152",
+        "repo": "agronholm/anyio",
+        "pr_number": 1198
+      },
+      {
+        "findings": [
+          {
+            "file": "src/anyio/_backends/_asyncio.py",
+            "line": 0,
+            "existing_code": "        except BaseException:\n            with suppress(BaseException):\n                wrapper_coro.close()\n\n            with suppress(BaseException):\n                coro.close()\n\n            raise",
+            "level": "INFO",
+            "type": "correctness",
+            "confidence": 0.15,
+            "description": "任务创建失败时通过 close() 关闭外层 wrapper_coro（TaskHandle._run_coro 生成的协程）与用户协程 coro，两者均被不同 suppress 包裹，任一个 close() 抛出异常都不会影响另一个的清理与原始异常的重新抛出，逻辑正确。但 wrapper_coro 已经通过 suspend 参数执行过（eager 模式下 coro.send(None)），wrapper_coro.close() 会触发其 finally 中的 self._finished_event.set()，与用户协程关闭并无冲突，属预期行为。",
+            "suggestion": "无需修改。建议在 close() 处补充一行注释，说明 wrapper_coro.close() 会设置 TaskHandle 的 finished event，便于后续阅读时理解侧效应。",
+            "group": "g0",
+            "source": "llm",
+            "anchor_status": "unanchored",
+            "anchored_line": 0
+          },
+          {
+            "file": "tests/test_taskgroups.py",
+            "line": 135,
+            "existing_code": "    async def task_func() -> None:\n        if suspend:\n            await checkpoint()",
+            "level": "LOW",
+            "type": "missing-test",
+            "confidence": 0.55,
+            "description": "测试用例的 task_func 只有在本函数被调度执行时才会 suspend，然而 eager=False 分支（lazy 模式）下 coro 从未被调度，suspend 参数对 lazy 子用例实际不产生任何行为差异，导致“lazy × suspend”组合与“lazy × return”组合完全等价——名义上的 2×2 参数化实际只有 3 个有效场景。",
+            "suggestion": "要么移除 lazy 分支的 suspend 参数（用 pytest.param 的 marks 或拆分参数化，仅对 eager 生效），要么确保 suspend 逻辑在 lazy 模式下也有不同覆盖路径，避免冗余用例。",
+            "group": "g0",
+            "source": "llm",
+            "anchor_status": "hunk",
+            "anchored_line": 135
+          },
+          {
+            "file": "tests/test_taskgroups.py",
+            "line": 159,
+            "existing_code": "        try:\n            tg.create_task(task_func_coro)\n        except RuntimeError as exc:\n            assert exc is expected_error\n        else:\n            pytest.fail(\"TaskGroup.start_soon() did not propagate the error\")",
+            "level": "LOW",
+            "type": "missing-test",
+            "confidence": 0.45,
+            "description": "测试仅使用 pathlib 工厂抛 RuntimeError 的路径，未覆盖 create_task 失败时抛非 Exception（如 KeyboardInterrupt / CancelledError）的场景，而修复代码明确用 BaseException 捕获。若未来有人把 BaseException 改回 Exception，现有测试不会失败，缺乏针对该关键修复点的回归防护。",
+            "suggestion": "增加一个参数化用例，让自定义 factory 抛出 CancelledError（或自定义 BaseException 子类），验证仍然关闭两个协程并原样重新抛出。",
+            "group": "g0",
+            "source": "llm",
+            "anchor_status": "hunk",
+            "anchored_line": 159
+          }
+        ],
+        "job_id": "eval_D_agronholm_anyio_1275_1789853232",
+        "repo": "agronholm/anyio",
+        "pr_number": 1275
+      },
+      {
+        "findings": [],
+        "job_id": "eval_D_agronholm_anyio_1223_1789853344",
+        "repo": "agronholm/anyio",
+        "pr_number": 1223
+      },
+      {
+        "findings": [
+          {
+            "file": "tests/test_to_thread.py",
+            "line": 194,
+            "existing_code": "    worker_threads[0].join(5)\n    assert not worker_threads[0].is_alive()",
+            "level": "MEDIUM",
+            "type": "test-effectiveness",
+            "confidence": 0.55,
+            "description": "该回归测试只断言工作线程最终已结束（`not is_alive()`），但没有校验线程是因正常完成而退出、还是因未捕获异常而崩溃退出。在旧代码（无 try/except 修复）路径下，mock 的 side_effect 释放后会调用真实 `call_soon_threadsafe` 于已关闭的 loop 上并抛出 RuntimeError；该异常从 `run()` 逸出会直接终止工作线程，`is_alive()` 同样为 False，断言依然通过。因此这个测试在“修复被回退”的情况下也可能通过，无法真正守住 #1265 的回归。",
+            "suggestion": "增加对异常/正常退出的断言，例如在测试期间捕获 threading.excepthook（或在 mock 里记录是否抛出 RuntimeError），并断言关闭 loop 后 worker 未抛出未处理异常；或断言 `_report_result` 未被调用/无异常传播，从而让测试在修复回退时真正失败。",
+            "group": "g0",
+            "source": "llm",
+            "anchor_status": "hunk",
+            "anchored_line": 194
+          }
+        ],
+        "job_id": "eval_D_agronholm_anyio_1279_1789853429",
+        "repo": "agronholm/anyio",
+        "pr_number": 1279
+      },
+      {
+        "findings": [],
+        "error": "Invalid review job transition: completed -> completed",
+        "repo": "agronholm/anyio",
+        "pr_number": 1169
+      },
+      {
+        "findings": [],
+        "job_id": "eval_D_agronholm_anyio_1269_1789853637",
+        "repo": "agronholm/anyio",
+        "pr_number": 1269
+      }
+    ]
+  }
+}

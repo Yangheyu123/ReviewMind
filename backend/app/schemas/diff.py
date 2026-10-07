@@ -44,3 +44,6 @@ class ParsedDiffFile(BaseModel):
     changed_lines: list[int] = Field(default_factory=list)
     deleted_lines: list[int] = Field(default_factory=list)
     hunks: list[DiffHunk] = Field(default_factory=list)
+    # 原始 patch 文本：agents/prompts.py 依赖它把 diff 内容注入 LLM prompt，
+    # 缺失会导致审查 agent 只能看到文件名（盲审）
+    patch: str | None = None

@@ -1,0 +1,114 @@
+{
+  "config": {
+    "model": "deepseek-v4.1-flash",
+    "prompt_hash": "2db891ef1d01",
+    "temperature_direct": 0.1,
+    "temperature_tool_loop": 0.0,
+    "dataset_hash": "4ac5f700fe44",
+    "dataset": "dataset/labels.json",
+    "hit_rule": "same file AND (line dist<=15 OR word overlap>=0.5)",
+    "review_min_confidence": 0.4,
+    "rg_available": true,
+    "groups": {
+      "A": {
+        "kind": "direct"
+      }
+    }
+  },
+  "summary": {
+    "A": {
+      "matched_prs": 1,
+      "labels": 1,
+      "recall": 1.0,
+      "precision_lb": 0.1429,
+      "f1": 0.25,
+      "noise_rate": 0.8571,
+      "findings_per_pr": 7.0,
+      "tokens_per_pr": 7366.0,
+      "seconds_per_pr": 11.1
+    }
+  },
+  "results": {
+    "A": [
+      {
+        "findings": [
+          {
+            "file": "pydantic-core/src/recursion_guard.rs",
+            "line": 80,
+            "level": "MEDIUM",
+            "type": "correctness",
+            "description": "递归深度保护阈值在 Windows 平台从 40 提升到 50，但这个改动与新增 ordered-dict 功能无关，属于无关的隐式变更。若该阈值调整并非必要（例如没有对应的栈溢出/深度回归测试），可能只是掩盖了新增代码路径的栈开销问题，且会使既有依赖该阈值的测试行为漂移。建议确认是否有针对性测试或理由，否则应拆分到独立 PR。",
+            "existing_code": "    } else if cfg!(all(windows, not(PyPy))) {\n-        40\n+        50\n    } else {"
+          },
+          {
+            "file": "pydantic-core/src/input/input_json.rs",
+            "line": 247,
+            "level": "MEDIUM",
+            "type": "correctness",
+            "description": "JSON 输入的 strict_ordered_dict 在 strict 模式下也接受 JsonValue::Object，注释说明这是为了让 JSON 能构造 OrderedDict。但这样就使 strict 约束在 JSON 路径上形同虚设，与文档中『In strict mode, only OrderedDict instances are valid』的表述在 JSON 场景下不一致（虽然 JSON 本身无法表达 OrderedDict，但会掩盖语义歧义）。至少应在文档或实现中明确 JSON strict 的特殊豁免，并补充对应测试。",
+            "existing_code": "    fn strict_ordered_dict(&self) -> ValMatch<Self::Dict<'_>> {\n        // we allow an object here since otherwise it would be impossible to create an OrderedDict from JSON\n        match self {\n            JsonValue::Object(dict) => Ok(ValidationMatch::strict(dict)),"
+          },
+          {
+            "file": "pydantic-core/src/input/input_string.rs",
+            "line": 187,
+            "level": "HIGH",
+            "type": "correctness",
+            "description": "StringMapping 的 strict_ordered_dict 在 Self::Mapping 分支返回 ValidationMatch::strict，即把字符串映射（如 str subclass 带 items()）当作严格 OrderedDict 接受。但严格模式下 OrderedDict 字段应只接受真正的 OrderedDict 实例，这里对 StringMapping::Mapping 放行会导致严格模式对自定义映射类型失效，与 Python 输入路径（input_python.rs 中 strict_ordered_dict 仅接受 OrderedDict 实例）行为不一致。",
+            "existing_code": "    fn strict_ordered_dict(&self) -> ValMatch<StringMappingDict<'py>> {\n        match self {\n            Self::String(_) => Err(ValError::new(ErrorTypeDefaults::OrderedDictType, self)),\n            Self::Mapping(d) => Ok(ValidationMatch::strict(StringMappingDict(d.clone()))),\n        }\n    }"
+          },
+          {
+            "file": "pydantic-core/src/input/input_python.rs",
+            "line": 477,
+            "level": "HIGH",
+            "type": "correctness",
+            "description": "lax_ordered_dict 在非 OrderedDict 分支会先尝试 cast_exact::<PyDict>()，再 cast::<PyMapping>()。由于 OrderedDict 是 dict 的子类，且 lax 路径下 is_instance(OrderedDict) 的判断已排除 OrderedDict，但 PyDict 分支会以 dict C API 迭代，忽略 move_to_end 等顺序变化；同时对于既是 dict 子类又实现了自定义 __iter__ 的映射，会被当作普通 dict 处理而丢失自定义顺序/键，建议统一走 Mapping 协议以避免顺序语义丢失，并补充此类子类用例测试。",
+            "existing_code": "        } else if let Ok(dict) = self.cast_exact::<PyDict>() {\n            Ok(ValidationMatch::lax(GenericPyMapping::Dict(dict)))\n        } else if let Ok(mapping) = self.cast::<PyMapping>() {"
+          },
+          {
+            "file": "pydantic-core/src/serializers/infer.rs",
+            "line": 165,
+            "level": "MEDIUM",
+            "type": "correctness",
+            "description": "infer_to_python_known 中把 ObType::Frozendict 与 ObType::OrderedDict 合并到同一分支，随后在该分支外又单独新增了 ObType::OrderedDict 的重建分支。若合并分支已先匹配 OrderedDict，则后续专门的 OrderedDict 分支可能永远不会被执行（或反之，取决于 match 顺序），导致 to_python 序列化时 OrderedDict 未被重建为 OrderedDict 实例而只输出普通 dict，序列化结果类型不正确。建议确认两个分支的匹配顺序并补充 round-trip 类型断言测试。",
+            "existing_code": "            ObType::Frozendict | ObType::OrderedDict => {\n                let mapping = value.cast::<PyMapping>()?;\n                serialize_pairs(mapping_pairs(mapping)?, state, serialize_to_python(py))?\n            }"
+          },
+          {
+            "file": "pydantic-core/python/pydantic_core/core_schema.py",
+            "line": 2261,
+            "level": "LOW",
+            "type": "correctness",
+            "description": "OrderedDictSchema 的 keys_schema/values_schema 注释默认值为 AnySchema，但 ordered_dict_schema 工厂函数未做类似 frozendict_schema/dict_schema 的默认填充，文档示例中 keys_schema/values_schema 必填与否与注释存在潜在不一致；同时 serialization 类型 IncExDictOrElseSerSchema 在其他 dict 类 schema 中的使用需保持一致。建议与 dict_schema 的实现对齐并补充默认值测试。",
+            "existing_code": "class OrderedDictSchema(TypedDict, total=False):\n    type: Required[Literal['ordered-dict']]\n    keys_schema: CoreSchema  # default: AnySchema\n    values_schema: CoreSchema  # default: AnySchema"
+          },
+          {
+            "file": "docs/plugins/conversion_table.py",
+            "line": 654,
+            "level": "LOW",
+            "type": "test",
+            "description": "新增的 OrderedDict JSON 关联行 valid_examples 为 '{\"v\": {\"1\": 1, \"2\": 2}}'，但 OrderedDict 的 JSON 严格路径会接受普通 object（见 input_json.rs 的特殊处理），该示例未覆盖非对象输入报 ordered_dict_type 的负例，也未覆盖 keys_schema 非 str 的 JSON key 约束场景，测试覆盖不足。",
+            "existing_code": "        'Object',\n        strict=True,\n        json_input=True,\n        valid_examples=['{\"v\": {\"1\": 1, \"2\": 2}}'],\n        core_schemas=[core_schema.OrderedDictSchema],"
+          }
+        ],
+        "llm_records": [
+          {
+            "job_id": "eval",
+            "group": "A",
+            "phase": "direct",
+            "model": "deepseek-v4.1-flash",
+            "protocol": "anthropic",
+            "prompt_tokens": 5884,
+            "completion_tokens": 1482,
+            "total_tokens": 7366,
+            "latency_ms": 11048,
+            "status": "ok",
+            "error": ""
+          }
+        ],
+        "tokens_used": 7366,
+        "elapsed_s": 11.1,
+        "repo": "pydantic/pydantic",
+        "pr_number": 13796
+      }
+    ]
+  }
+}

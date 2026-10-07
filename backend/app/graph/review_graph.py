@@ -28,6 +28,7 @@ from app.graph.state import ReviewGraphState
 from app.models.review_job import ReviewJob
 from app.schemas.review import (
     ChangedFile,
+    ChangedSymbol,
     ReviewJobStatus,
     ReviewReport,
     ReviewReportStats,
@@ -45,6 +46,8 @@ class ReviewGraphResult:
     filtered_files: dict[str, Any]
     parsed_diff: list[dict[str, Any]]
     warnings: list[str]
+    # Phase 4：引擎观测元数据（findings/tokens/llm 请求数），外层合入 pipeline_result
+    engine_meta: dict[str, Any] | None = None
 
 
 _CRITICAL_NODES = {"fetch_pr", "fetch_files"}
@@ -102,7 +105,15 @@ class ReviewGraph:
         from app.core.config import settings
 
         if settings.review_use_agent_loop:
-            return await self._run_via_orchestrator(job, config)
+            from app.agent_loop.engine import run_engine
+            result = await run_engine(self._store, self._github_client, job)
+            return ReviewGraphResult(
+                pr_info=result.get("pr_info", {}),
+                filtered_files=result.get("filtered_files", {}),
+                parsed_diff=result.get("parsed_diff", []),
+                warnings=result.get("warnings", []),
+                engine_meta=result.get("engine_meta"),
+            )
 
         state = ReviewGraphState(job_id=job.job_id, pr_url=job.pr_url, config=config or {})
         await self._store.update_status(job.job_id, ReviewJobStatus.running)
@@ -175,6 +186,7 @@ class ReviewGraph:
         async_dispatch: dict[str, Any] = {
             "fetch_pr": lambda s: node_fetch_pr_async(s, gc, st),
             "fetch_files": lambda s: node_fetch_files_async(s, gc, st),
+            "ast_context": lambda s: node_ast_context(s, gc, st),
             "rag_context": lambda s: node_rag_context(s, gc, st),
             "summary_agent": lambda s: node_summary_agent(s, gc, st),
             "security_agent": lambda s: node_security_agent(s, gc, st),
@@ -185,7 +197,6 @@ class ReviewGraph:
         sync_dispatch: dict[str, Any] = {
             "diff_filter": lambda s: _sync(node_diff_filter, s, gc, st),
             "parse_diff": lambda s: _sync(node_parse_diff, s, gc, st),
-            "ast_context": lambda s: _sync(node_ast_context, s, gc, st),
             "tech_stack_analysis": lambda s: _sync(node_tech_stack_analysis, s, gc, st),
             "finding_validator": lambda s: _sync(node_finding_validator, s, gc, st),
             "report_agent": lambda s: _sync(node_report_agent, s, gc, st),
@@ -208,20 +219,30 @@ class ReviewGraph:
             )
             for f in state.filtered_files.get("included_files", [])
         ]
+        # 变更符号来自 AST 提取结果（降级的文件级上下文没有 symbol，跳过）
+        changed_symbols = [
+            ChangedSymbol(
+                file=ctx["file"], symbol=ctx["symbol"], language=ctx.get("language", "unknown"),
+                start_line=ctx.get("start_line", 0), end_line=ctx.get("end_line", 0),
+                changed_lines=ctx.get("changed_lines", []), code=ctx.get("code"),
+            )
+            for ctx in state.ast_contexts
+            if ctx.get("symbol")
+        ]
 
         if state.report_output:
             output = state.report_output
             report = ReviewReport(
                 summary=output.summary, risk_level=output.risk_level,
                 stats=ReviewReportStats(), changed_files=changed_files,
-                changed_symbols=[], findings=output.findings,
+                changed_symbols=changed_symbols, findings=output.findings,
                 review_comment=output.review_comment,
             )
         else:
             report = ReviewReport(
                 summary=state.summary_text or f"PR 分析完成，共 {len(state.parsed_diff)} 个文件。",
                 risk_level="LOW", stats=ReviewReportStats(),
-                changed_files=changed_files, changed_symbols=[], findings=[],
+                changed_files=changed_files, changed_symbols=changed_symbols, findings=[],
                 review_comment="## AI Review Summary\n\n基础分析完成。",
             )
 

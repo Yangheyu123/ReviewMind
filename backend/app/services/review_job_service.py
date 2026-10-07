@@ -158,6 +158,10 @@ class ReviewJobService:
 
     async def cancel_job(self, job_id: str) -> ReviewJobDetailResponse:
         await self._get_job_or_404(job_id)
+        # 先取消后台执行（若在运行），避免状态改为 cancelled 后 pipeline 继续
+        # 烧完剩余 LLM 调用、并在 _finish 里触发 cancelled->completed 非法转移
+        if self._task_runner is not None:
+            self._task_runner.cancel(job_id)
         try:
             await self._store.update_status(job_id, ReviewJobStatus.cancelled)
         except InvalidReviewJobTransitionError as exc:
@@ -256,7 +260,10 @@ def _build_report_from_pipeline(job: ReviewJob) -> ReviewReport:
     )
 
 
-review_job_service = ReviewJobService(review_job_store)
+# 生产装配：注入 TaskRunner 管理后台任务（强引用 + 异常日志 + 可取消），
+# 替代裸 asyncio.create_task（异常只在 GC 时打日志、cancel 无法停止执行）
+review_task_runner = ReviewTaskRunner(review_job_store)
+review_job_service = ReviewJobService(review_job_store, task_runner=review_task_runner)
 
 
 def _to_job_list_item(job: ReviewJob) -> JobListItem:

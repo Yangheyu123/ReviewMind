@@ -138,3 +138,32 @@ def test_agent_context_accepts_empty_diff():
 
     result = security_agent.run(context)
     assert len(result.findings) == 0
+
+def test_user_prompt_contains_patch_content():
+    """回归测试（P0#1）：parse_diff_file → build_user_prompt 全链路必须把 diff 代码
+    注入 LLM prompt。此前 ParsedDiffFile 缺 patch 字段导致审查 agent 只能看到文件名
+    （盲审），且旧测试手工给 parsed_diff 塞 "patch" 键掩盖了该缺陷。
+    """
+    from app.agents.prompts import build_user_prompt
+    from app.schemas.agents import AgentContext
+    from app.schemas.diff import PullRequestFile
+    from app.services.diff_parser import parse_diff_file
+
+    pf = PullRequestFile(
+        filename="services/auth.py",
+        status="modified",
+        additions=2,
+        deletions=1,
+        patch=(
+            "@@ -8,2 +8,3 @@\n"
+            " def login(username, password):\n"
+            "-    user = db.query(f\"SELECT * FROM users WHERE name='{username}'\")\n"
+            "+    user = db.query(\"SELECT * FROM users WHERE name=%s\", (username,))\n"
+        ),
+    )
+    parsed = parse_diff_file(pf).model_dump(mode="json")
+    prompt = build_user_prompt(AgentContext(parsed_diff=[parsed]))
+
+    assert "Patch:" in prompt
+    assert "db.query" in prompt, "diff 代码内容必须进入 prompt，否则 agent 盲审"
+    assert "services/auth.py" in prompt

@@ -4,7 +4,7 @@ from app.models.review_job import ReviewJob
 from app.schemas.github import GitHubBranchRef, GitHubPullRequestFile, GitHubPullRequestInfo
 from app.schemas.review import ReviewJobStatus
 from app.services.github_client import GitHubClientError
-from app.services.review_job_store import ReviewJobStore
+from tests.memory_store import MemoryReviewJobStore
 from app.services.review_pipeline import ReviewPipeline
 
 
@@ -24,6 +24,15 @@ class MockGitHubClient:
             deletions=1,
             html_url=pr_ref.html_url,
         )
+
+    async def fetch_file_content(self, pr_ref, path, ref):
+        if path == "backend/app/services/example.py":
+            # run() 在第 1-2 行，使 changed_lines [2, 3] 能命中 run 的区间
+            return (
+                "def run():\n    return True\n\n\n"
+                "def unused_helper():\n    pass\n"
+            )
+        return None
 
     async def fetch_pull_request_files(self, pr_ref):
         return [
@@ -54,12 +63,12 @@ class FailingGitHubClient:
 
 @pytest.mark.anyio
 async def test_review_pipeline_saves_intermediate_result_and_completes_job() -> None:
-    store = ReviewJobStore()
-    job = store.create(ReviewJob(job_id="rev_1", pr_url="https://github.com/example/repo/pull/1"))
+    store = MemoryReviewJobStore()
+    job = await store.create(ReviewJob(job_id="rev_1", pr_url="https://github.com/example/repo/pull/1"))
     pipeline = ReviewPipeline(store, MockGitHubClient())
 
     result = await pipeline.run(job)
-    saved_job = store.get("rev_1")
+    saved_job = await store.get("rev_1")
 
     assert saved_job.status == ReviewJobStatus.completed
     assert saved_job.report is not None
@@ -75,12 +84,12 @@ async def test_review_pipeline_saves_intermediate_result_and_completes_job() -> 
 
 @pytest.mark.anyio
 async def test_review_pipeline_marks_job_failed_when_github_fetch_fails() -> None:
-    store = ReviewJobStore()
-    job = store.create(ReviewJob(job_id="rev_2", pr_url="https://github.com/example/repo/pull/404"))
+    store = MemoryReviewJobStore()
+    job = await store.create(ReviewJob(job_id="rev_2", pr_url="https://github.com/example/repo/pull/404"))
     pipeline = ReviewPipeline(store, FailingGitHubClient())
 
     result = await pipeline.run(job)
-    saved_job = store.get("rev_2")
+    saved_job = await store.get("rev_2")
 
     assert saved_job.status == ReviewJobStatus.failed
     assert "GitHub pull request was not found" in saved_job.error_message

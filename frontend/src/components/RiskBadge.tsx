@@ -12,11 +12,12 @@ const riskBadgeVariants = cva(
         HIGH: 'bg-orange-950/40 text-orange-400 border-orange-500/20',
         MEDIUM: 'bg-yellow-950/40 text-yellow-400 border-yellow-500/20',
         LOW: 'bg-blue-950/40 text-blue-400 border-blue-500/20',
-        SUGGESTION: 'bg-zinc-800/60 text-zinc-400 border-zinc-700/30',
+        WARNING: 'bg-amber-950/40 text-amber-400 border-amber-500/20',
+        INFO: 'bg-zinc-800/60 text-zinc-400 border-zinc-700/30',
       },
     },
     defaultVariants: {
-      level: 'SUGGESTION',
+      level: 'INFO',
     },
   },
 );

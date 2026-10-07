@@ -146,29 +146,55 @@ def node_parse_diff(state: ReviewGraphState, _github_client: GitHubClient, _stor
     return state
 
 
-def node_ast_context(state: ReviewGraphState, _github_client: GitHubClient, _store: ReviewJobStore) -> ReviewGraphState:
-    """节点 5：对 Python 文件提取 AST 上下文。非关键节点，失败降级。"""
+async def node_ast_context(state: ReviewGraphState, github_client: GitHubClient, _store: ReviewJobStore) -> ReviewGraphState:
+    """节点 5：对支持的源码文件提取 AST 上下文。非关键节点，失败降级。
+
+    优先拉取 head 版本真实文件内容做 AST（changed_lines 即新文件行号，天然对齐）；
+    拉取失败时降级为 patch 重建源码——对修改型文件重建文本不完整，ast.parse
+    常失败，是 AST 命中率不稳的历史主因。
+    """
     if state.error:
         return state
     try:
+        from app.schemas.github import GitHubPullRequestRef
+        from app.services.ast_context import detect_language
+        from app.services.github_url_parser import parse_github_pr_url
+
         contexts: list[dict] = []
         included = state.filtered_files.get("included_files", [])
         file_map = {f["filename"]: f for f in included}
+
+        pr_ref = None
+        head_sha = (state.pr_info.get("head") or {}).get("sha") if state.pr_info else None
+
         for diff in state.parsed_diff:
             filename = diff.get("file", "")
             changed_lines = diff.get("changed_lines", [])
             f_info = file_map.get(filename, {})
             patch = f_info.get("patch", "")
-            if not patch or not changed_lines:
+            if not changed_lines or detect_language(filename) == "unknown":
                 continue
-            # 尝试从 patch 还原源码（仅限新增文件或小 diff 的降级方案）
-            source = _extract_source_from_patch(patch)
-            if source:
+
+            source: str | None = None
+            # 路径 1：拉取 head 真实源码
+            if head_sha:
                 try:
-                    ctx_list = extract_ast_context(filename, source, changed_lines)
-                    contexts.extend([c.model_dump(mode="json") for c in ctx_list])
+                    if pr_ref is None:
+                        pr_ref = parse_github_pr_url(state.pr_url)
+                    source = await github_client.fetch_file_content(pr_ref, filename, head_sha)
                 except Exception:
-                    pass  # AST 解析失败降级
+                    source = None
+            # 路径 2：patch 重建（降级）
+            if not source:
+                source = _extract_source_from_patch(patch)
+            if not source:
+                continue
+
+            try:
+                ctx_list = extract_ast_context(filename, source, changed_lines)
+                contexts.extend([c.model_dump(mode="json") for c in ctx_list])
+            except Exception:
+                pass  # AST 解析失败降级为无上下文
         state.ast_contexts = contexts
     except Exception as exc:
         state.warnings.append(f"AST_CONTEXT: {exc}")

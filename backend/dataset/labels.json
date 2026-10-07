@@ -1,0 +1,924 @@
+{
+  "generated_at": "2026-09-19T21:01:16.408020+00:00",
+  "rules": {
+    "repos": [
+      "sqlalchemy/sqlalchemy",
+      "pydantic/pydantic",
+      "agronholm/anyio",
+      "langchain-ai/langchain",
+      "encode/starlette",
+      "encode/httpx",
+      "pallets/click",
+      "pallets/flask",
+      "tiangolo/fastapi"
+    ],
+    "merge_window_days": 400,
+    "max_prs_per_repo": 150,
+    "evidence": "review comment (defect-signal regex, non-style) + push-after-comment"
+  },
+  "stats": {
+    "prs_scanned": 800,
+    "prs_with_labels": 45,
+    "total_labels": 64
+  },
+  "items": [
+    {
+      "repo": "pydantic/pydantic",
+      "pr_number": 13796,
+      "pr_url": "https://github.com/pydantic/pydantic/pull/13796",
+      "title": "Add an `ordered-dict` core schema",
+      "changed_files": null,
+      "merged_at": "2026-09-17T11:19:18Z",
+      "labels": [
+        {
+          "file": "pydantic-core/src/input/input_json.rs",
+          "line": 249,
+          "body": "It is consistent with other dict schemas, except TypedDicts:\r\n\r\n| Core schema | `validate_json('{\"a\":\"bad\",\"a\":1}')` | `validate_json('{\"a\":1,\"a\":2}')` |\r\n|---|---|---|\r\n| `dict_schema(str_schema(), int_schema())` | `int_parsing` error at `('a',)` | `{'a': 2}` |\r\n| `ordered_dict_schema(str_schema(), int_schema())` | `int_parsing` error at `('a',)` | `OrderedDict({'a': 2})` |\r\n| `typed_dict_schema(",
+          "comment_url": "https://github.com/pydantic/pydantic/pull/13796#discussion_r3988197976",
+          "commented_at": "2026-09-11T10:19:54Z"
+        }
+      ]
+    },
+    {
+      "repo": "pydantic/pydantic",
+      "pr_number": 13699,
+      "pr_url": "https://github.com/pydantic/pydantic/pull/13699",
+      "title": "Allow `None` to serialize against secret fields",
+      "changed_files": null,
+      "merged_at": "2026-08-24T10:35:16Z",
+      "labels": [
+        {
+          "file": "tests/test_types.py",
+          "line": 2436,
+          "body": "```suggestion\n    assert Model().model_dump() == {'f': None}\n    assert Model().model_dump_json() == '{\"f\":null}'\n```",
+          "comment_url": "https://github.com/pydantic/pydantic/pull/13699#discussion_r3842568361",
+          "commented_at": "2026-08-24T10:22:13Z"
+        }
+      ]
+    },
+    {
+      "repo": "pydantic/pydantic",
+      "pr_number": 13659,
+      "pr_url": "https://github.com/pydantic/pydantic/pull/13659",
+      "title": "Fix application of other constraints in the pipeline API",
+      "changed_files": null,
+      "merged_at": "2026-08-16T20:22:18Z",
+      "labels": [
+        {
+          "file": "pydantic/experimental/pipeline.py",
+          "line": 555,
+          "body": "When the `Len` constraint falls back to the Python-level `check_len`, the predicate string is always formatted as `length >= {min_len} and length <= {max_len}`. If `max_len is None`, this produces error messages like `Expected length >= 2 and length <= None`, which is confusing and user-facing. Also, `len(v)` is computed twice when `max_len` is set.",
+          "comment_url": "https://github.com/pydantic/pydantic/pull/13659#discussion_r3781807668",
+          "commented_at": "2026-08-14T07:10:12Z"
+        }
+      ]
+    },
+    {
+      "repo": "agronholm/anyio",
+      "pr_number": 1320,
+      "pr_url": "https://github.com/agronholm/anyio/pull/1320",
+      "title": "Allow Condition.notify() when underlying lock is held directly",
+      "changed_files": null,
+      "merged_at": "2026-09-12T09:42:22Z",
+      "labels": [
+        {
+          "file": "docs/versionhistory.rst",
+          "line": 19,
+          "body": "New fixes go to the bottom.\n```suggestion\n- Fixed ``sleep()`` treating a negative delay (including ``-inf``) inconsistently\nacross backends (asyncio returned immediately; Trio raised ``ValueError``) by\nraising ``ValueError`` on all backends\n(`#1306 <https://github.com/agronholm/anyio/issues/1306>`_; PR by @BetterAndBetterII)\n- Fixed ``create_tcp_listener()`` occasionally failing with a message lik",
+          "comment_url": "https://github.com/agronholm/anyio/pull/1320#discussion_r3983870581",
+          "commented_at": "2026-09-10T21:59:24Z"
+        }
+      ]
+    },
+    {
+      "repo": "agronholm/anyio",
+      "pr_number": 1198,
+      "pr_url": "https://github.com/agronholm/anyio/pull/1198",
+      "title": "Fix start inconsistencies between trio and asyncio",
+      "changed_files": null,
+      "merged_at": "2026-08-30T09:35:03Z",
+      "labels": [
+        {
+          "file": "tests/test_taskgroups.py",
+          "line": 1867,
+          "body": "```suggestion\n    # * The CancelledError shouldn't leak out of the start() call to the calling\n    #   task.\n```",
+          "comment_url": "https://github.com/agronholm/anyio/pull/1198#discussion_r3722632727",
+          "commented_at": "2026-08-05T17:23:35Z"
+        }
+      ]
+    },
+    {
+      "repo": "agronholm/anyio",
+      "pr_number": 1275,
+      "pr_url": "https://github.com/agronholm/anyio/pull/1275",
+      "title": "Fix asyncio task group coroutine cleanup",
+      "changed_files": null,
+      "merged_at": "2026-08-28T21:40:30Z",
+      "labels": [
+        {
+          "file": "tests/test_taskgroups.py",
+          "line": 200,
+          "body": "Here's a simpler and more comprehensive test for this.\n```suggestion\n@pytest.mark.parametrize(\"anyio_backend\", [\"asyncio\"])\n@pytest.mark.parametrize(\n    \"suspend\", [pytest.param(False, id=\"return\"), pytest.param(True, id=\"suspend\")]\n)\n@pytest.mark.parametrize(\n    \"eager\", [pytest.param(False, id=\"lazy\"), pytest.param(True, id=\"eager\")]\n)\nasync def test_start_soon_closes_coroutines_when_create_ta",
+          "comment_url": "https://github.com/agronholm/anyio/pull/1275#discussion_r3878636351",
+          "commented_at": "2026-08-28T07:13:09Z"
+        }
+      ]
+    },
+    {
+      "repo": "agronholm/anyio",
+      "pr_number": 1223,
+      "pr_url": "https://github.com/agronholm/anyio/pull/1223",
+      "title": "Fix asyncio CapacityLimiter over-granting tokens when total_tokens is raised while over-subscribed",
+      "changed_files": null,
+      "merged_at": "2026-08-23T17:25:00Z",
+      "labels": [
+        {
+          "file": "src/anyio/_backends/_asyncio.py",
+          "line": 2086,
+          "body": "No need to elaborate about a bug that existed. A note that we check against the real capacity is enough here.\n\n```suggestion\n        # Notify waiting tasks that they have acquired the limiter while\n        # there is spare capacity.\n        while self._wait_queue and len(self._borrowers) < self._total_tokens:\n```",
+          "comment_url": "https://github.com/agronholm/anyio/pull/1223#discussion_r3577802383",
+          "commented_at": "2026-07-14T09:43:18Z"
+        }
+      ]
+    },
+    {
+      "repo": "agronholm/anyio",
+      "pr_number": 1279,
+      "pr_url": "https://github.com/agronholm/anyio/pull/1279",
+      "title": "Fix worker result race with closed event loop",
+      "changed_files": null,
+      "merged_at": "2026-08-23T10:56:11Z",
+      "labels": [
+        {
+          "file": "src/anyio/_backends/_asyncio.py",
+          "line": 1050,
+          "body": "The condition is the reverse guard: it is false for the expected shutdown race (the loop is now closed, so that RuntimeError is suppressed), but true if call_soon_threadsafe raises RuntimeError while the loop is still open. In that case the error is unrelated to shutdown and must be re-raised rather than silently swallowed. test_worker_thread_result_delivery_runtime_error verifies this open-loop b",
+          "comment_url": "https://github.com/agronholm/anyio/pull/1279#discussion_r3775157817",
+          "commented_at": "2026-08-13T12:05:36Z"
+        },
+        {
+          "file": "src/anyio/_backends/_asyncio.py",
+          "line": 1050,
+          "body": "What I meant is you can remove that  `loop._is_closed` check when you catch the error and just do nothing. or you may do it other way like the linked PR did.  I also just noticed that change hangs this test `test_worker_thread_propagates_runtime_error_from_open_loop`",
+          "comment_url": "https://github.com/agronholm/anyio/pull/1279#discussion_r3775188255",
+          "commented_at": "2026-08-13T12:10:19Z"
+        }
+      ]
+    },
+    {
+      "repo": "agronholm/anyio",
+      "pr_number": 1169,
+      "pr_url": "https://github.com/agronholm/anyio/pull/1169",
+      "title": "Made all the top-level imports lazy",
+      "changed_files": null,
+      "merged_at": "2026-08-16T10:17:56Z",
+      "labels": [
+        {
+          "file": "src/anyio/_lazyimport.py",
+          "line": 14,
+          "body": "> **CPython implementation detail:** This function should be used for internal and specialized purposes only. It is not guaranteed to exist in all implementations of Python.\n\nShould we have a fallback for implementations that don't have `sys._getframe`? Perhaps just require that the module name is passed directly, but add a check so that we'll get a test failure on CPython if we pass the wrong nam",
+          "comment_url": "https://github.com/agronholm/anyio/pull/1169#discussion_r3409015254",
+          "commented_at": "2026-06-14T04:31:05Z"
+        },
+        {
+          "file": "src/anyio/_lazyimport.py",
+          "line": 18,
+          "body": "Is `module.__file__` guaranteed to be non-`None` and available on disk? E.g. is is possible for folks to do pyc-only installs or something similar? Or is the assumption of a `.py` file available on disk broken by bundling tools like PyInstaller? There is also `zipimport` in the stdlib, although I don't claim to know whether anyone is using it with AnyIO or not.\n\n",
+          "comment_url": "https://github.com/agronholm/anyio/pull/1169#discussion_r3409023602",
+          "commented_at": "2026-06-14T04:41:34Z"
+        },
+        {
+          "file": "src/anyio/_lazyimport.py",
+          "line": 114,
+          "body": "Because we read the file for a second time here, there is a race condition where the file could be changed in-between the two reads, causing a desync between the lazy importer and what regular imports would have done. In theory, it could make package management issues like #983 harder to debug.\n\nIn practice, if we call this function while the module is being loaded, the window for a race is probab",
+          "comment_url": "https://github.com/agronholm/anyio/pull/1169#discussion_r3439324960",
+          "commented_at": "2026-06-18T22:48:57Z"
+        }
+      ]
+    },
+    {
+      "repo": "agronholm/anyio",
+      "pr_number": 1269,
+      "pr_url": "https://github.com/agronholm/anyio/pull/1269",
+      "title": "Fix UNIX socket close race with cancelled I/O",
+      "changed_files": null,
+      "merged_at": "2026-08-10T22:02:11Z",
+      "labels": [
+        {
+          "file": "tests/test_sockets.py",
+          "line": 1479,
+          "body": "The task group is providing concurrency here: `listener.serve()` must run while the test connects the client and waits for the handler receive/send operation to block. Cancelling its scope then cancels the listener and active handler at the point that exposes the race. A plain `CancelScope` would not start `listener.serve()` concurrently. I can rewrite this around a pre-connected socket pair if yo",
+          "comment_url": "https://github.com/agronholm/anyio/pull/1269#discussion_r3753223231",
+          "commented_at": "2026-08-10T20:44:09Z"
+        }
+      ]
+    },
+    {
+      "repo": "agronholm/anyio",
+      "pr_number": 1146,
+      "pr_url": "https://github.com/agronholm/anyio/pull/1146",
+      "title": "implement future container types",
+      "changed_files": null,
+      "merged_at": "2026-08-06T21:05:49Z",
+      "labels": [
+        {
+          "file": "src/anyio/_core/_futures.py",
+          "line": 185,
+          "body": "@davidbrochart Would something like this be slightly more effective or do we just make a new raiseable error system. I have a few ideas on how to go about this just know I wasn't able to satisfy trio's exception constructor.\r\n\r\n1. Idea 1\r\n```python\r\ndef __cancelled_error(self, msg: str):\r\n        exc = get_cancelled_exc_class()\r\n        raise FutureCancelled(\"the future was cancelled\") from exc\r\n`",
+          "comment_url": "https://github.com/agronholm/anyio/pull/1146#discussion_r3539389515",
+          "commented_at": "2026-07-07T20:17:46Z"
+        },
+        {
+          "file": "src/anyio/_core/_futures.py",
+          "line": 129,
+          "body": "This rubs me the wrong way. I don't think we should be raising a task-related exception here.",
+          "comment_url": "https://github.com/agronholm/anyio/pull/1146#discussion_r3660788404",
+          "commented_at": "2026-07-27T20:47:29Z"
+        }
+      ]
+    },
+    {
+      "repo": "agronholm/anyio",
+      "pr_number": 1272,
+      "pr_url": "https://github.com/agronholm/anyio/pull/1272",
+      "title": "fix: Guard deprecated pytest CallSpec2 import",
+      "changed_files": null,
+      "merged_at": "2026-08-11T21:20:09Z",
+      "labels": [
+        {
+          "file": "src/anyio/pytest_plugin.py",
+          "line": 32,
+          "body": "Is this really helpful? Will something break if we remove it?",
+          "comment_url": "https://github.com/agronholm/anyio/pull/1272#discussion_r3754159537",
+          "commented_at": "2026-08-10T23:22:51Z"
+        }
+      ]
+    },
+    {
+      "repo": "agronholm/anyio",
+      "pr_number": 1249,
+      "pr_url": "https://github.com/agronholm/anyio/pull/1249",
+      "title": "Document memory stream clones for multiple workers",
+      "changed_files": null,
+      "merged_at": "2026-07-30T21:51:12Z",
+      "labels": [
+        {
+          "file": "docs/streams.rst",
+          "line": 114,
+          "body": "Yes, exactly. Applied in 1050173; the warning-as-error Sphinx build passes.",
+          "comment_url": "https://github.com/agronholm/anyio/pull/1249#discussion_r3670665287",
+          "commented_at": "2026-07-29T03:06:01Z"
+        }
+      ]
+    },
+    {
+      "repo": "agronholm/anyio",
+      "pr_number": 1199,
+      "pr_url": "https://github.com/agronholm/anyio/pull/1199",
+      "title": "Add rsloop as backend for asyncio tests.",
+      "changed_files": null,
+      "merged_at": "2026-07-25T10:23:19Z",
+      "labels": [
+        {
+          "file": "src/anyio/abc/_eventloop.py",
+          "line": 252,
+          "body": "While trying to initially get rsloop to pass one of the failures was that it didn't accept these arguments (at least `cwd` and `env`) explicitly as None while it handled them correctly if omitted (treating them as if None was passed).\r\n\r\nSince `anyio` actually passes `None` explicitly see https://github.com/agronholm/anyio/blob/master/src/anyio/_core/_subprocesses.py#L184 a backend is required to ",
+          "comment_url": "https://github.com/agronholm/anyio/pull/1199#discussion_r3611416632",
+          "commented_at": "2026-07-19T21:50:00Z"
+        }
+      ]
+    },
+    {
+      "repo": "agronholm/anyio",
+      "pr_number": 1211,
+      "pr_url": "https://github.com/agronholm/anyio/pull/1211",
+      "title": "Break ref-cycle between loop and root_task via RunVar",
+      "changed_files": null,
+      "merged_at": "2026-07-24T20:55:37Z",
+      "labels": [
+        {
+          "file": "src/anyio/_backends/_asyncio.py",
+          "line": 331,
+          "body": "Yeah, one `run_until_complete()` is a \"run\" in my books, but I'd like to double check we don't break anything by nixing all the run variables at the end of the root task.",
+          "comment_url": "https://github.com/agronholm/anyio/pull/1211#discussion_r3554599115",
+          "commented_at": "2026-07-09T20:25:31Z"
+        },
+        {
+          "file": "src/anyio/_backends/_asyncio.py",
+          "line": 331,
+          "body": "If so just using the `RunVar`s at all should probably trigger the search for a root task that registers that clean-up. If just added here it would be dependent on if anything called `find_root_task` which isn't a given.\r\n\r\nBut I like that better anyway as cleanup of runvars should ideally be kept in that module anyway. I'll see if I can move it and if it breaks anything in the test-suite.",
+          "comment_url": "https://github.com/agronholm/anyio/pull/1211#discussion_r3555361407",
+          "commented_at": "2026-07-09T23:08:50Z"
+        }
+      ]
+    },
+    {
+      "repo": "agronholm/anyio",
+      "pr_number": 1215,
+      "pr_url": "https://github.com/agronholm/anyio/pull/1215",
+      "title": "Fix SpooledTemporaryFile.readinto/readinto1 reading twice before rollover",
+      "changed_files": null,
+      "merged_at": "2026-07-19T21:24:58Z",
+      "labels": [
+        {
+          "file": "tests/test_tempfile.py",
+          "line": 117,
+          "body": "Yes, I'd also like these tests to be trimmed down. Remove the unwarranted asserts and just focus on testing for the actual bug.",
+          "comment_url": "https://github.com/agronholm/anyio/pull/1215#discussion_r3606686390",
+          "commented_at": "2026-07-17T22:45:03Z"
+        }
+      ]
+    },
+    {
+      "repo": "agronholm/anyio",
+      "pr_number": 1217,
+      "pr_url": "https://github.com/agronholm/anyio/pull/1217",
+      "title": "Fixed 100% CPU spin on cancel scope misuse",
+      "changed_files": null,
+      "merged_at": "2026-07-12T20:12:03Z",
+      "labels": [
+        {
+          "file": "tests/test_taskgroups.py",
+          "line": 395,
+          "body": "After digging deeper these asserts would actually trigger if the real bug was fixed which makes me even more sceptical.",
+          "comment_url": "https://github.com/agronholm/anyio/pull/1217#discussion_r3566474048",
+          "commented_at": "2026-07-12T14:23:27Z"
+        },
+        {
+          "file": "tests/test_taskgroups.py",
+          "line": 392,
+          "body": "I tested it and it still catches the error and the fix still resolves it.",
+          "comment_url": "https://github.com/agronholm/anyio/pull/1217#discussion_r3566492394",
+          "commented_at": "2026-07-12T14:34:26Z"
+        },
+        {
+          "file": "src/anyio/_backends/_asyncio.py",
+          "line": 596,
+          "body": "```suggestion\r\n\r\nif (self._host_task and self._host_task.done()):\r\n    self._tasks.remove(self._host_task)\r\n\r\ncurrent = current_task()\r\nfor task in self._tasks:\r\n            # Always skip tasks that are already done (see issue #1111)\r\n            if task.done():\r\n```\r\n\r\n~~This would fix this case potentially cheaper.~~ ~~Never mind it breaks a whole lot of other things~~\r\nOk with a None check it w",
+          "comment_url": "https://github.com/agronholm/anyio/pull/1217#discussion_r3566504109",
+          "commented_at": "2026-07-12T14:41:22Z"
+        }
+      ]
+    },
+    {
+      "repo": "agronholm/anyio",
+      "pr_number": 1172,
+      "pr_url": "https://github.com/agronholm/anyio/pull/1172",
+      "title": "Fix CapacityLimiter over-granting tokens on asyncio",
+      "changed_files": null,
+      "merged_at": "2026-07-12T20:00:28Z",
+      "labels": [
+        {
+          "file": "tests/test_synchronization.py",
+          "line": 980,
+          "body": "Are you saying that `anyio.CapacityLimiter` somehow raises `trio.WouldBlock`? That would be a serious bug, but I think you're confused.",
+          "comment_url": "https://github.com/agronholm/anyio/pull/1172#discussion_r3564983443",
+          "commented_at": "2026-07-11T20:31:55Z"
+        }
+      ]
+    },
+    {
+      "repo": "agronholm/anyio",
+      "pr_number": 1175,
+      "pr_url": "https://github.com/agronholm/anyio/pull/1175",
+      "title": "Fix asyncio waiting on closing streams in ``Process.wait()``",
+      "changed_files": null,
+      "merged_at": "2026-06-27T12:48:10Z",
+      "labels": [
+        {
+          "file": "tests/test_subprocesses.py",
+          "line": 397,
+          "body": "Nope. I'll check. Sounds like some refactoring may have broken it.",
+          "comment_url": "https://github.com/agronholm/anyio/pull/1175#discussion_r3451512301",
+          "commented_at": "2026-06-22T10:30:10Z"
+        }
+      ]
+    },
+    {
+      "repo": "agronholm/anyio",
+      "pr_number": 1145,
+      "pr_url": "https://github.com/agronholm/anyio/pull/1145",
+      "title": "Fix asyncio lock waiter deadlocks after cancellation",
+      "changed_files": null,
+      "merged_at": "2026-06-15T21:53:43Z",
+      "labels": [
+        {
+          "file": "src/anyio/_backends/_asyncio.py",
+          "line": 1886,
+          "body": "This would also result in O(n²) iterations, since `self._waiters.remove(item)` takes O(n) time for a missing item. Hypothetically, we could mark visited items in the `release()` method and only perform the removal when there is no such marker, but I am not sure how to do this efficiently in terms of memory for asyncio futures.\r\n\r\nIt would likely be worth changing the items (queue tokens) slightly ",
+          "comment_url": "https://github.com/agronholm/anyio/pull/1145#discussion_r3409925732",
+          "commented_at": "2026-06-14T17:16:10Z"
+        }
+      ]
+    },
+    {
+      "repo": "agronholm/anyio",
+      "pr_number": 1153,
+      "pr_url": "https://github.com/agronholm/anyio/pull/1153",
+      "title": "Added task handle support to start() and start_soon()",
+      "changed_files": null,
+      "merged_at": "2026-06-13T22:38:15Z",
+      "labels": [
+        {
+          "file": "src/anyio/_backends/_asyncio.py",
+          "line": 890,
+          "body": "This check is now missing from `start()` on asyncio (but not Trio):\n\n```python\nasync def test_start_in_closed_task_group() -> None:\n    async def taskfunc(*, task_status: TaskStatus[None]) -> None:\n        task_status.started()\n\n    async with create_task_group() as tg:\n        pass\n\n    with pytest.raises(\n        RuntimeError,\n        match=r\"This task group is not active; no new tasks can be st",
+          "comment_url": "https://github.com/agronholm/anyio/pull/1153#discussion_r3300489394",
+          "commented_at": "2026-05-26T00:39:19Z"
+        },
+        {
+          "file": "src/anyio/abc/_tasks.py",
+          "line": 171,
+          "body": "This signature change (and `start`'s similar signature change) regresses part of 538b739b8a33bbdbf305e11d93c8bc34154e50d7. I am not sure whether that is actually a problem or not; do we still want to support `Awaitable` here at type-checking time but not runtime?\r\n\r\nTrio still does: https://github.com/python-trio/trio/blob/v0.33.0/src/trio/_core/_run.py#L1351. Some previous discussions: https://gi",
+          "comment_url": "https://github.com/agronholm/anyio/pull/1153#discussion_r3300798012",
+          "commented_at": "2026-05-26T02:16:12Z"
+        },
+        {
+          "file": "src/anyio/abc/_tasks.py",
+          "line": 55,
+          "body": "This check has been changed from `inspect.iscoroutine` to `abc.Coroutine.__instancecheck__`. I am thinking about #230/#675/#762 and trying to understand if/why it's safe to do that now.\r\n\r\nIt seems to me that allowing `async_generator_asend` instances by using `abc.Coroutine.__instancecheck__` is now safe for the following reason: On asyncio (but not Trio), we are now wrapping all `async_generator",
+          "comment_url": "https://github.com/agronholm/anyio/pull/1153#discussion_r3307882936",
+          "commented_at": "2026-05-27T01:31:04Z"
+        }
+      ]
+    },
+    {
+      "repo": "agronholm/anyio",
+      "pr_number": 1149,
+      "pr_url": "https://github.com/agronholm/anyio/pull/1149",
+      "title": "fixes trio backend hangs instead of failing when dynamically accessing async fixture via getfixturevalue",
+      "changed_files": null,
+      "merged_at": "2026-05-27T06:42:47Z",
+      "labels": [
+        {
+          "file": "src/anyio/_backends/_trio.py",
+          "line": 876,
+          "body": "I get the RuntimeError we raised in  the plugin fixture setup!\r\n\r\n```\r\n    raise RuntimeError(\r\nE   RuntimeError: Cannot schedule a coroutine in the test runner while another is already running; likely caused by request.getfixturevalue() on an async fixture.\r\n__________________________________________________________________________________________________________ ERROR at setup of TestPath.test_g",
+          "comment_url": "https://github.com/agronholm/anyio/pull/1149#discussion_r3305986423",
+          "commented_at": "2026-05-26T18:26:59Z"
+        }
+      ]
+    },
+    {
+      "repo": "agronholm/anyio",
+      "pr_number": 1131,
+      "pr_url": "https://github.com/agronholm/anyio/pull/1131",
+      "title": "Use Self to preserve subclass types in anyio.Path path-returning methods",
+      "changed_files": null,
+      "merged_at": "2026-04-30T09:32:41Z",
+      "labels": [
+        {
+          "file": "docs/versionhistory.rst",
+          "line": 19,
+          "body": "New features should be first in the changelog, then changes and then fixes.\n```suggestion\n- Added the ``local_port`` parameter to :func:`connect_tcp` to allow binding to a\nspecific local port before connecting\n(`#1067 <https://github.com/agronholm/anyio/issues/1067>`_; PR by @nullwiz)\n- Added support for custom capacity limiters in async path and file I/O\nfunctions and classes\n- Added the ``create",
+          "comment_url": "https://github.com/agronholm/anyio/pull/1131#discussion_r3162535208",
+          "commented_at": "2026-04-29T16:19:42Z"
+        }
+      ]
+    },
+    {
+      "repo": "agronholm/anyio",
+      "pr_number": 1115,
+      "pr_url": "https://github.com/agronholm/anyio/pull/1115",
+      "title": "Improve missing backend error",
+      "changed_files": null,
+      "merged_at": "2026-04-13T20:49:32Z",
+      "labels": [
+        {
+          "file": "docs/versionhistory.rst",
+          "line": 13,
+          "body": "4.13.0 has shipped already.\n```suggestion\n- Added support for custom capacity limiters in async path and file I/O\nfunctions and classes\n- Improved the error message when a known backend is not installed to suggest the install command\n  (`<https://github.com/agronholm/anyio/pull/1115>`_; PR by @EmmanuelNiyonshuti)\n\n**4.13.0**\n```",
+          "comment_url": "https://github.com/agronholm/anyio/pull/1115#discussion_r3074126776",
+          "commented_at": "2026-04-13T15:42:03Z"
+        }
+      ]
+    },
+    {
+      "repo": "agronholm/anyio",
+      "pr_number": 1110,
+      "pr_url": "https://github.com/agronholm/anyio/pull/1110",
+      "title": "fix: prevent TaskGroup re-entry with clear RuntimeError",
+      "changed_files": null,
+      "merged_at": "2026-04-14T21:58:21Z",
+      "labels": [
+        {
+          "file": "docs/versionhistory.rst",
+          "line": 13,
+          "body": "```suggestion\n- Fixed ``TaskGroup`` raising ``AttributeError`` instead of a clear error when entered\n  more than once\n  (`#1109 <https://github.com/agronholm/anyio/issues/1109>`_; PR by @bahtya)\n```",
+          "comment_url": "https://github.com/agronholm/anyio/pull/1110#discussion_r3051446096",
+          "commented_at": "2026-04-08T12:54:57Z"
+        }
+      ]
+    },
+    {
+      "repo": "agronholm/anyio",
+      "pr_number": 1098,
+      "pr_url": "https://github.com/agronholm/anyio/pull/1098",
+      "title": "Added the create_task() method to TaskGroup",
+      "changed_files": null,
+      "merged_at": "2026-04-14T15:08:36Z",
+      "labels": [
+        {
+          "file": "src/anyio/_core/_tasks.py",
+          "line": 274,
+          "body": "I assume I'm missing something about why this try and re-raise block is needed vs. just the naked yield from (so please just remind me).",
+          "comment_url": "https://github.com/agronholm/anyio/pull/1098#discussion_r2987352493",
+          "commented_at": "2026-03-25T10:48:04Z"
+        },
+        {
+          "file": "src/anyio/_core/_tasks.py",
+          "line": 370,
+          "body": "I've also definitely had times when I've used asyncio tasks as futures returnad and waited for in multiple places, if nothing else like an async cache.\n\nI've actually began to reconsider my loose thought about unconditionally wrapping the exception like in the Aborted/Cancelled state as an actually sensible alternative. If you only want the exception raised to abort and log/inform a `TaskFailed di",
+          "comment_url": "https://github.com/agronholm/anyio/pull/1098#discussion_r2994270948",
+          "commented_at": "2026-03-26T11:39:21Z"
+        },
+        {
+          "file": "src/anyio/_core/_tasks.py",
+          "line": 275,
+          "body": "Does it? How can I reproduce that? This doesn't:\r\n```py\r\nimport anyio\r\n\r\n\r\nasync def error_task() -> None:\r\n    try:\r\n        raise RuntimeError(\"outer error\")\r\n    except RuntimeError:\r\n        raise RuntimeError(\"inner error\")\r\n\r\n\r\nasync def main() -> None:\r\n    async with anyio.create_task_group() as tg:\r\n        try:\r\n            await tg.create_task(error_task())\r\n        except RuntimeError ",
+          "comment_url": "https://github.com/agronholm/anyio/pull/1098#discussion_r2996696653",
+          "commented_at": "2026-03-26T17:53:56Z"
+        }
+      ]
+    },
+    {
+      "repo": "agronholm/anyio",
+      "pr_number": 1073,
+      "pr_url": "https://github.com/agronholm/anyio/pull/1073",
+      "title": "Add `ttl` parameter to functools.lru_cache",
+      "changed_files": null,
+      "merged_at": "2026-02-23T14:49:13Z",
+      "labels": [
+        {
+          "file": "src/anyio/functools.py",
+          "line": 55,
+          "body": "Actually I marked the wrong line, this has to be float regardless because this is where we store expiration time",
+          "comment_url": "https://github.com/agronholm/anyio/pull/1073#discussion_r2834000010",
+          "commented_at": "2026-02-20T16:19:59Z"
+        }
+      ]
+    },
+    {
+      "repo": "agronholm/anyio",
+      "pr_number": 1031,
+      "pr_url": "https://github.com/agronholm/anyio/pull/1031",
+      "title": "Added a new test job to test against the oldest allowed dependencies",
+      "changed_files": null,
+      "merged_at": "2025-11-14T16:10:05Z",
+      "labels": [
+        {
+          "file": ".github/workflows/test.yml",
+          "line": 116,
+          "body": "I forgot it existed. I'll change the PR to use that.",
+          "comment_url": "https://github.com/agronholm/anyio/pull/1031#discussion_r2524689041",
+          "commented_at": "2025-11-13T19:31:55Z"
+        }
+      ]
+    },
+    {
+      "repo": "langchain-ai/langchain",
+      "pr_number": 40463,
+      "pr_url": "https://github.com/langchain-ai/langchain/pull/40463",
+      "title": "fix(langchain): preserve model-generated tool calls in HITL tool call edits and add notice to ToolMessage",
+      "changed_files": null,
+      "merged_at": "2026-09-18T13:54:52Z",
+      "labels": [
+        {
+          "file": "libs/langchain_v1/langchain/agents/middleware/human_in_the_loop.py",
+          "line": 566,
+          "body": "Updated this to only update the latest AIMessage, avoiding the issue with replays and ID collisions.\r\n\r\nIf a user attempts to `\"edit\"` when the tool does not include that in `allowed_decisions`, we raise an error (as on `master`).\r\n\r\nIf a user attempts to `\"edit\"` and directs to another tool, we don't interrupt that tool; that behavior matches `master`-- the human is already in the loop making the",
+          "comment_url": "https://github.com/langchain-ai/langchain/pull/40463#discussion_r4038303723",
+          "commented_at": "2026-09-17T14:58:09Z"
+        }
+      ]
+    },
+    {
+      "repo": "langchain-ai/langchain",
+      "pr_number": 40545,
+      "pr_url": "https://github.com/langchain-ai/langchain/pull/40545",
+      "title": "feat(typesafe): experimental `AutoModeMiddleware`",
+      "changed_files": null,
+      "merged_at": "2026-09-17T22:14:50Z",
+      "labels": [
+        {
+          "file": "libs/partners/typesafe/tests/integration_tests/experimental/middleware/test_auto_mode.py",
+          "line": 85,
+          "body": "can we make sure contains error message",
+          "comment_url": "https://github.com/langchain-ai/langchain/pull/40545#discussion_r4040627913",
+          "commented_at": "2026-09-17T19:22:18Z"
+        },
+        {
+          "file": "libs/partners/typesafe/tests/integration_tests/experimental/middleware/test_auto_mode.py",
+          "line": 85,
+          "body": "Added an assertion that the blocked `ToolMessage` contains the expected risk-classification error text.\n\n-- Sol",
+          "comment_url": "https://github.com/langchain-ai/langchain/pull/40545#discussion_r4040717173",
+          "commented_at": "2026-09-17T19:32:59Z"
+        }
+      ]
+    },
+    {
+      "repo": "langchain-ai/langchain",
+      "pr_number": 40543,
+      "pr_url": "https://github.com/langchain-ai/langchain/pull/40543",
+      "title": "feat(typesafe): experimental `ModelRouterMiddleware`",
+      "changed_files": null,
+      "merged_at": "2026-09-17T22:07:40Z",
+      "labels": [
+        {
+          "file": "libs/partners/typesafe/langchain_typesafe/experimental/middleware/model_router.py",
+          "line": 227,
+          "body": "Reduced the hooks to the sync/async invocation boundary with input extraction and route validation shared by both paths. `runtime` remains named as required by LangGraph injection; the `del runtime` statements are gone.\n\n-- Sol",
+          "comment_url": "https://github.com/langchain-ai/langchain/pull/40543#discussion_r4040174184",
+          "commented_at": "2026-09-17T18:28:12Z"
+        },
+        {
+          "file": "libs/partners/typesafe/tests/unit_tests/experimental/middleware/test_model_router.py",
+          "line": 1,
+          "body": "Reworked the unit suite so middleware behavior is exercised only through `create_agent` with mocked `TypeSafeClassifier` responses and `GenericFakeChatModel` routes. Sync routing, async routing, classifier failures, missing human input, and unknown selections now all run end-to-end through the compiled agent graph. The remaining direct construction tests cover constructor validation/configuration ",
+          "comment_url": "https://github.com/langchain-ai/langchain/pull/40543#discussion_r4040452027",
+          "commented_at": "2026-09-17T19:01:42Z"
+        },
+        {
+          "file": "libs/partners/typesafe/langchain_typesafe/experimental/middleware/model_router.py",
+          "line": 161,
+          "body": "Removed the defensive missing-human-message branch. The shared helper now relies on the agent input invariant and returns the latest human message directly.\n\n-- Sol",
+          "comment_url": "https://github.com/langchain-ai/langchain/pull/40543#discussion_r4040615196",
+          "commented_at": "2026-09-17T19:20:46Z"
+        }
+      ]
+    },
+    {
+      "repo": "langchain-ai/langchain",
+      "pr_number": 39939,
+      "pr_url": "https://github.com/langchain-ai/langchain/pull/39939",
+      "title": "feat(langchain): `langchain.mcp` namespace, `MCPAdapter`",
+      "changed_files": null,
+      "merged_at": "2026-09-03T04:21:11Z",
+      "labels": [
+        {
+          "file": "libs/langchain_v1/langchain/mcp/tools.py",
+          "line": 117,
+          "body": "talked live, but this goes against our default disposition for tools (e.g. tools by default error out the run entirely)",
+          "comment_url": "https://github.com/langchain-ai/langchain/pull/39939#discussion_r3867599394",
+          "commented_at": "2026-08-26T23:50:35Z"
+        },
+        {
+          "file": "libs/langchain_v1/langchain/mcp/tools.py",
+          "line": 117,
+          "body": "we might be fine in that, in which case we should prob do `ToolMessage(status=\"error\", content=...)`",
+          "comment_url": "https://github.com/langchain-ai/langchain/pull/39939#discussion_r3867601121",
+          "commented_at": "2026-08-26T23:50:56Z"
+        }
+      ]
+    },
+    {
+      "repo": "langchain-ai/langchain",
+      "pr_number": 39978,
+      "pr_url": "https://github.com/langchain-ai/langchain/pull/39978",
+      "title": "docs(groq): remove duplicate `method` block from `with_structured_output` docstring",
+      "changed_files": null,
+      "merged_at": "2026-08-27T23:00:43Z",
+      "labels": [
+        {
+          "file": "libs/partners/groq/langchain_groq/chat_models.py",
+          "line": 1002,
+          "body": "The warning sentence is missing a conjunction, so it currently reads incorrectly (\"streaming responses stop sequences\"). This should be \"streaming responses or stop sequences\".",
+          "comment_url": "https://github.com/langchain-ai/langchain/pull/39978#discussion_r3876511033",
+          "commented_at": "2026-08-27T22:58:15Z"
+        }
+      ]
+    },
+    {
+      "repo": "encode/starlette",
+      "pr_number": 3438,
+      "pr_url": "https://github.com/Kludex/starlette/pull/3438",
+      "title": "Add OpenTelemetry middleware",
+      "changed_files": null,
+      "merged_at": "2026-08-23T06:49:43Z",
+      "labels": [
+        {
+          "file": "docs/middleware.md",
+          "line": 107,
+          "body": "Instead of this, can't this be done via env var according to otel, or am I wrong?",
+          "comment_url": "https://github.com/Kludex/starlette/pull/3438#discussion_r3748850664",
+          "commented_at": "2026-08-10T10:58:23Z"
+        }
+      ]
+    },
+    {
+      "repo": "encode/starlette",
+      "pr_number": 3431,
+      "pr_url": "https://github.com/Kludex/starlette/pull/3431",
+      "title": "Add `max_body_size` to `Starlette` and route classes",
+      "changed_files": null,
+      "merged_at": "2026-08-08T17:06:26Z",
+      "labels": [
+        {
+          "file": "starlette/middleware/body_limit.py",
+          "line": 12,
+          "body": "```suggestion\nclass _Missing:\n    ...\n\n_MISSING = Missing()\n```",
+          "comment_url": "https://github.com/Kludex/starlette/pull/3431#discussion_r3740994831",
+          "commented_at": "2026-08-08T15:46:20Z"
+        }
+      ]
+    },
+    {
+      "repo": "encode/starlette",
+      "pr_number": 2830,
+      "pr_url": "https://github.com/Kludex/starlette/pull/2830",
+      "title": "avoid collapsing exception groups from user code",
+      "changed_files": null,
+      "merged_at": "2026-06-10T10:33:03Z",
+      "labels": [
+        {
+          "file": "pyproject.toml",
+          "line": 71,
+          "body": "This breaks running mypy on different versions of python in CI\r\n\r\nIn this case it breaks finding the exceptiongroup backport module on `sys.version_info < (3, 11)`",
+          "comment_url": "https://github.com/Kludex/starlette/pull/2830#discussion_r1899164949",
+          "commented_at": "2024-12-29T17:04:59Z"
+        }
+      ]
+    },
+    {
+      "repo": "encode/starlette",
+      "pr_number": 3245,
+      "pr_url": "https://github.com/Kludex/starlette/pull/3245",
+      "title": "docs: improve grammar in contributing guide",
+      "changed_files": null,
+      "merged_at": "2026-04-21T07:48:26Z",
+      "labels": [
+        {
+          "file": "docs/contributing.md",
+          "line": 22,
+          "body": "Minor grammar: the comma after \"and\" is unnecessary and makes the sentence read awkwardly. Consider \"Try to be as descriptive as you can and, in the case of a bug report, ...\" (or remove the comma after \"and\" entirely).\n```suggestion\nTry to be as descriptive as you can and, in the case of a bug report,\n```",
+          "comment_url": "https://github.com/Kludex/starlette/pull/3245#discussion_r3108027565",
+          "commented_at": "2026-04-20T02:55:07Z"
+        }
+      ]
+    },
+    {
+      "repo": "pallets/click",
+      "pr_number": 3818,
+      "pr_url": "https://github.com/pallets/click/pull/3818",
+      "title": "Fix race condition on `KeyboardInterrupt` in `Command.main()`",
+      "changed_files": null,
+      "merged_at": "2026-08-31T23:42:24Z",
+      "labels": [
+        {
+          "file": "tests/test_abort_interrupt.py",
+          "line": 191,
+          "body": "This is in fact the test I first started with to reproduce the issue in real conditions and introduce some randomness to reproduce the race condition and better understand what's going on. Only after that I created the set of more deterministic tests above in this suite. So yeah technically we can remove it as it did its job guiding this small refactor.",
+          "comment_url": "https://github.com/pallets/click/pull/3818#discussion_r3897975240",
+          "commented_at": "2026-08-31T20:10:41Z"
+        }
+      ]
+    },
+    {
+      "repo": "pallets/click",
+      "pr_number": 3780,
+      "pr_url": "https://github.com/pallets/click/pull/3780",
+      "title": "Add FAQ entry about `edit()` returning immediately",
+      "changed_files": null,
+      "merged_at": "2026-08-29T04:45:56Z",
+      "labels": [
+        {
+          "file": "docs/faqs.md",
+          "line": 42,
+          "body": "This needs to be a bit more obvious. Maybe: edit utility fails to open vscode",
+          "comment_url": "https://github.com/pallets/click/pull/3780#discussion_r3818202384",
+          "commented_at": "2026-08-20T02:36:55Z"
+        }
+      ]
+    },
+    {
+      "repo": "pallets/click",
+      "pr_number": 1572,
+      "pr_url": "https://github.com/pallets/click/pull/1572",
+      "title": "Add file-like pager: `click.get_pager_file()`",
+      "changed_files": null,
+      "merged_at": "2026-04-29T23:33:44Z",
+      "labels": [
+        {
+          "file": "src/click/_termui_impl.py",
+          "line": 455,
+          "body": "The fallback path for an empty `cmd_parts` hard-codes the encoding as `\"utf-8\"`. If this ultimately writes to a real stdout stream with a different encoding, `get_pager_file` will wrap `stdout.buffer` with UTF-8 and emit bytes in the wrong encoding (mojibake). Use `get_best_encoding(stdout)` (or avoid re-wrapping stdout at all) so the encoding matches the actual stream.",
+          "comment_url": "https://github.com/pallets/click/pull/1572#discussion_r3164813457",
+          "commented_at": "2026-04-29T23:39:15Z"
+        },
+        {
+          "file": "src/click/termui.py",
+          "line": 297,
+          "body": "`click.get_pager_file` is a new public API, but there don't appear to be tests covering it (only `echo_via_pager`). Adding a small test that writes to the returned file (including ANSI stripping behavior and the cmd-not-found/nullpager paths) would help ensure the new pager refactor doesn't regress across platforms.",
+          "comment_url": "https://github.com/pallets/click/pull/1572#discussion_r3164813485",
+          "commented_at": "2026-04-29T23:39:15Z"
+        },
+        {
+          "file": "src/click/_termui_impl.py",
+          "line": 377,
+          "body": "`MaybeStripAnsi` subclasses `io.TextIOWrapper` directly and doesn't implement the non-closing behavior Click uses elsewhere (`_NonClosingTextIOWrapper.__del__` detaches to avoid closing shared global streams). Because `get_pager_file` creates short-lived `MaybeStripAnsi` wrappers around things like `sys.stdout.buffer`, when the wrapper is garbage-collected it can close the underlying stream / fd, ",
+          "comment_url": "https://github.com/pallets/click/pull/1572#discussion_r3164813497",
+          "commented_at": "2026-04-29T23:39:15Z"
+        }
+      ]
+    },
+    {
+      "repo": "pallets/click",
+      "pr_number": 3473,
+      "pr_url": "https://github.com/pallets/click/pull/3473",
+      "title": "Add help parameter to arguments",
+      "changed_files": null,
+      "merged_at": "2026-05-28T07:30:45Z",
+      "labels": [
+        {
+          "file": "src/click/core.py",
+          "line": 1214,
+          "body": "> Also renamed the method `format_args` --> `format_argumenst` per the other thread.\r\n\r\nThanks for being pro-active. Forgot to mention that one for completeness in my review.",
+          "comment_url": "https://github.com/pallets/click/pull/3473#discussion_r3315854839",
+          "commented_at": "2026-05-28T06:49:11Z"
+        }
+      ]
+    },
+    {
+      "repo": "pallets/click",
+      "pr_number": 3030,
+      "pr_url": "https://github.com/pallets/click/pull/3030",
+      "title": "Differentiate absence of value and value of absence for `default` and `flag_value` arguments",
+      "changed_files": null,
+      "merged_at": "2025-08-24T06:56:13Z",
+      "labels": [
+        {
+          "file": "src/click/utils.py",
+          "line": 47,
+          "body": "At this point, there is going to be some breakage. Every other attempt to fix some edge case, uncovers a new one. I leave it up to @kdeldycke to figure out breakage / fix things trade off. If he wants the behavior, of the sentinel to be falsely, then it's fine. I only opposed it, because it seemed like it was suggested to make it more convenient for users, which I think that we have agreed are not",
+          "comment_url": "https://github.com/pallets/click/pull/3030#discussion_r2271975623",
+          "commented_at": "2025-08-13T03:23:14Z"
+        },
+        {
+          "file": "CHANGES.rst",
+          "line": 7,
+          "body": "- rework flag value passing by disentangling use of default. Formerly defaults for ``flag_value`` were set by passing ``default=True``, now set by passing ``default='desired_value'``. **This change breaks all default settings for flag value type flags.**  In all other places in code, ``default`` takes on the default value. Fixing this inconsistency allows the fixing of the linked issues and suppor",
+          "comment_url": "https://github.com/pallets/click/pull/3030#discussion_r2280260112",
+          "commented_at": "2025-08-16T05:55:46Z"
+        },
+        {
+          "file": "src/click/core.py",
+          "line": 2130,
+          "body": "Re-adding these checks, the following tests fails:\r\n```\r\nFAILED tests/test_arguments.py::test_nargs_star - ValueError: 'default' must be a list when 'nargs' != 1.\r\nFAILED tests/test_arguments.py::test_nargs_tup - ValueError: 'default' must be a list when 'nargs' != 1.\r\nFAILED tests/test_arguments.py::test_nargs_tup_composite[opts0] - ValueError: 'default' must be a list when 'nargs' != 1.\r\nFAILED ",
+          "comment_url": "https://github.com/pallets/click/pull/3030#discussion_r2295444681",
+          "commented_at": "2025-08-23T07:39:41Z"
+        }
+      ]
+    },
+    {
+      "repo": "pallets/click",
+      "pr_number": 3256,
+      "pr_url": "https://github.com/pallets/click/pull/3256",
+      "title": "Show custom error message in prompt with `hide_input=True`",
+      "changed_files": null,
+      "merged_at": "2026-05-14T05:01:10Z",
+      "labels": [
+        {
+          "file": "src/click/termui.py",
+          "line": 213,
+          "body": "I understand why this is done. Though should we not do the same as the repr value branch?\n\nLet's say there's an error message saying \"PASSWORD is too short\". I'd rather have a bit of a weirder message like \"*** is too short\" than \"The value you entered was invalid.\".\n\n@kdeldycke @Rowlando13 what do you peeps think? I think otherwise this looks great.",
+          "comment_url": "https://github.com/pallets/click/pull/3256#discussion_r3164880917",
+          "commented_at": "2026-04-30T00:01:08Z"
+        }
+      ]
+    },
+    {
+      "repo": "pallets/click",
+      "pr_number": 3405,
+      "pr_url": "https://github.com/pallets/click/pull/3405",
+      "title": "`click.get_pager_file`: add tests (#1572 followup)",
+      "changed_files": null,
+      "merged_at": "2026-05-16T15:50:46Z",
+      "labels": [
+        {
+          "file": "tests/test_termui.py",
+          "line": 639,
+          "body": "Instead of monkeypatching `_pager_contextmanager` everytwhere, you can just feed `get_pager_file` with `PAGER=`. That way you can check with `PAGER` being set to `cat`, `PAGER` left unset, `PAGER` set to a missing binary etc to test even more edge-cases.",
+          "comment_url": "https://github.com/pallets/click/pull/3405#discussion_r3186763152",
+          "commented_at": "2026-05-05T07:39:45Z"
+        }
+      ]
+    },
+    {
+      "repo": "pallets/click",
+      "pr_number": 3422,
+      "pr_url": "https://github.com/pallets/click/pull/3422",
+      "title": "Add type annotations for instance attributes in `utils`",
+      "changed_files": null,
+      "merged_at": "2026-05-16T15:55:46Z",
+      "labels": [
+        {
+          "file": "src/click/utils.py",
+          "line": 128,
+          "body": "I don't know enough about type hints to review this. Can you break down why list them out this way instead of the way that they are done in line 133 and 134? ",
+          "comment_url": "https://github.com/pallets/click/pull/3422#discussion_r3252108061",
+          "commented_at": "2026-05-16T04:42:29Z"
+        }
+      ]
+    }
+  ]
+}

@@ -80,14 +80,15 @@ export interface ChangedSymbol {
 }
 
 // ============ Finding ============
-export type RiskLevel = 'CRITICAL' | 'HIGH' | 'MEDIUM' | 'LOW' | 'SUGGESTION';
+export type RiskLevel = 'CRITICAL' | 'HIGH' | 'MEDIUM' | 'LOW' | 'WARNING' | 'INFO';
+// 后端实际下发 snake_case（如 security_agent）
 export type AgentName =
-  | 'SummaryAgent'
-  | 'SecurityAgent'
-  | 'PerformanceAgent'
-  | 'TestAgent'
-  | 'RiskJudge'
-  | 'ReportAgent';
+  | 'summary_agent'
+  | 'security_agent'
+  | 'performance_agent'
+  | 'test_agent'
+  | 'risk_judge'
+  | 'report_agent';
 
 export interface Finding {
   id: string;

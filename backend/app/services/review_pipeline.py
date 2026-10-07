@@ -44,10 +44,22 @@ class ReviewPipeline:
                 },
             )
 
-        pipeline_result = ReviewPipelineResult(
+        # Phase 4：引擎观测元数据（findings/tokens/llm 请求数）合入持久化，
+        # 替代此前"外层覆盖引擎保存"导致观测数据丢失的缺口
+        from types import SimpleNamespace
+        meta = getattr(result, "engine_meta", None) or {}
+        payload = SimpleNamespace(
+            pr_info=result.pr_info,
+            filtered_files=result.filtered_files,
+            parsed_diff=result.parsed_diff,
+            findings=meta.get("findings", []),
+            tokens_used=meta.get("tokens_used", 0),
+            group_summaries=meta.get("group_summaries", []),
+            llm_request_count=meta.get("llm_request_count", 0),
+        )
+        await self._store.save_pipeline_result(job.job_id, payload)
+        return ReviewPipelineResult(
             pr_info=result.pr_info,
             filtered_files=result.filtered_files,
             parsed_diff=result.parsed_diff,
         )
-        await self._store.save_pipeline_result(job.job_id, pipeline_result)
-        return pipeline_result

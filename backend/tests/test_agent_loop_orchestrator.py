@@ -145,17 +145,21 @@ async def test_orchestrator_critical_failure_marks_job_failed():
 
 @pytest.mark.asyncio
 async def test_graph_delegates_to_orchestrator_when_enabled(monkeypatch):
-    """开关开启时，ReviewGraph.run 应调用 orchestrator。"""
+    """开关开启时，ReviewGraph.run 应委托 LangGraph 引擎（Phase 1 转正后的默认路径）。"""
     monkeypatch.setattr(settings, "review_use_agent_loop", True)
 
     delegated: list[bool] = []
 
-    async def fake_orchestrator_run(self, job, config=None):
+    async def fake_engine_run(store, github_client, job):
         delegated.append(True)
-        from app.agent_loop.orchestrator import OrchestratorResult
-        return OrchestratorResult(pr_info={"title": "via-loop"}, filtered_files={}, parsed_diff=[], warnings=[])
+        return {
+            "pr_info": {"title": "via-engine"},
+            "filtered_files": {"included_files": [], "excluded_files": []},
+            "parsed_diff": [],
+            "warnings": [],
+        }
 
-    monkeypatch.setattr("app.agent_loop.orchestrator.ReviewOrchestrator.run", fake_orchestrator_run)
+    monkeypatch.setattr("app.agent_loop.engine.run_engine", fake_engine_run)
 
     store = MockStore()
     graph = ReviewGraph(ReviewJobStore.__new__(ReviewJobStore))  # 不实际用 store
@@ -163,7 +167,7 @@ async def test_graph_delegates_to_orchestrator_when_enabled(monkeypatch):
     graph._store = store
     result = await graph.run(_make_job())
     assert delegated == [True]
-    assert result.pr_info == {"title": "via-loop"}
+    assert result.pr_info == {"title": "via-engine"}
 
 
 @pytest.mark.asyncio
@@ -190,10 +194,9 @@ async def test_graph_original_path_when_disabled(monkeypatch):
     assert ("job-test", ReviewJobStatus.failed) in store.status_updates
 
 
-def test_config_default_is_disabled():
-    """默认配置应禁用 Agent Loop（保留原有路径）。"""
-    # 不修改环境的情况下，settings.review_use_agent_loop 默认 False
+def test_config_default_is_enabled():
+    """Phase 1 转正：LangGraph 引擎（agent_loop）为默认路径，旧 graph 流水线保留可回滚。"""
     from app.core.config import Settings
 
     fresh = Settings()
-    assert fresh.review_use_agent_loop is False
+    assert fresh.review_use_agent_loop is True

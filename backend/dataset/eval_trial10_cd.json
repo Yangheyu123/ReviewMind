@@ -1,0 +1,713 @@
+{
+  "config": {
+    "limit": 10,
+    "model": "deepseek-v4.1-flash",
+    "hit_window": 15
+  },
+  "summary": {
+    "C": {
+      "prs": 10,
+      "total_labels": 12,
+      "hit_labels": 1,
+      "hit_rate": 0.0833,
+      "total_findings": 18,
+      "findings_per_pr": 1.8,
+      "hit_findings_rate": 0.0556
+    },
+    "D": {
+      "prs": 10,
+      "total_labels": 12,
+      "hit_labels": 1,
+      "hit_rate": 0.0833,
+      "total_findings": 21,
+      "findings_per_pr": 2.1,
+      "hit_findings_rate": 0.0476
+    }
+  },
+  "results": {
+    "C": [
+      {
+        "findings": [
+          {
+            "file": "pydantic-core/src/input/input_python.rs",
+            "line": 0,
+            "existing_code": "fn strict_ordered_dict(&self) -> ValMatch<StringMappingDict<'py>> {\n        match self {\n            Self::String(_) => Err(ValError::new(ErrorTypeDefaults::OrderedDictType, self)),\n            Self::Mapping(d) => Ok(ValidationMatch::strict(StringMappingDict(d.clone()))),\n        }\n    }",
+            "level": "LOW",
+            "type": "input-coverage",
+            "confidence": 0.175,
+            "description": "StringMapping::strict_ordered_dict 仅对 Self::String 返回错误，但对 Python 输入而言 strict 模式通常还应拒绝非 OrderedDict 的普通 Mapping（如普通 dict 或自定义 Mapping）。这里的实现只按输入枚举分支处理，无法区分输入到底是不是真正的 collections.OrderedDict；若上层依赖该分支做严格性判断，普通 dict 在 strict 下会被当作合法 OrderedDict 接受，存在严格模式语义不一致的风险。",
+            "suggestion": "确认 strict_ordered_dict 的语义：参考 strict_dict 的实现，在 _python.rs 的 StringMapping（或 PyAny/Mapping 分支）中按实际类型（is_instance(get_ordered_dict_type)）判定是否严格通过，确保普通 dict/自定义 Mapping 在 strict 模式下被正确拒绝或降级。",
+            "group": "g1",
+            "source": "llm",
+            "anchor_status": "unanchored",
+            "anchored_line": 0
+          },
+          {
+            "file": "pydantic-core/src/input/input_python.rs",
+            "line": 0,
+            "existing_code": "                                        errors.push(err.with_outer_location(\"[key]\").with_outer_location(key.clone()));",
+            "level": "INFO",
+            "type": "evidence-gap",
+            "confidence": 0.1,
+            "description": "本轮无法直接读取 input_python.rs 中 validate_ordered_dict 相关改动的 diff（工具返回 path not accessible），故无法核验 string_mapping 与 python 各输入类型是否都实现了 ordered_dict 相关方法。若存在未实现的 Input 分支（如 input_json.rs / input_abstract.rs 未覆盖），在 ordered-dict schema 用于 JSON 输入时会走到默认 fallback，可能产生类型接受范围与文档不符的问题，需人工确认。",
+            "suggestion": "请人工核对 input_abstract.rs / input_json.rs / input_python.rs 中 ordered_dict 相关方法是否全部实现且默认实现（如返回错误）符合预期。",
+            "group": "g1",
+            "source": "llm",
+            "anchor_status": "unanchored",
+            "anchored_line": 0
+          },
+          {
+            "file": "pydantic/_internal/_known_annotated_metadata.py",
+            "line": 75,
+            "existing_code": "    (DICT_CONSTRAINTS, ('dict', 'frozendict', 'ordered-dict')),",
+            "level": "LOW",
+            "type": "correctness",
+            "confidence": 0.3,
+            "description": "为 ordered-dict 复用了 DICT_CONSTRAINTS（min_length/max_length），但 DICT_CONSTRAINTS 中可能还包含 `strict` 之外或依赖 dict 语义的约束（例如 key/value 关联的约束），对 OrderedDict 而言语义是否完全一致未在本文件范围内验证。若 DICT_CONSTRAINTS 包含仅对 dict 有效的选项，可能对 ordered-dict 产生无意义或错误的错误信息。",
+            "suggestion": "确认 DICT_CONSTRAINTS 仅含 min_length/max_length 这类长度约束（长度语义对 OrderedDict 成立），否则为 ordered-dict 单独定义约束集合并补充测试覆盖。",
+            "group": "g2",
+            "source": "llm",
+            "anchor_status": "hunk",
+            "anchored_line": 75
+          },
+          {
+            "file": "pydantic-core/tests/serializers/test_ordered_dict.py",
+            "line": 32,
+            "existing_code": "def test_ordered_dict_key_value_schemas() -> None:",
+            "level": "INFO",
+            "type": "missing-test",
+            "confidence": 0.3,
+            "description": "新增的 OrderedDict 序列化测试覆盖了 order/include/exclude/subclass/fallback/infer，但缺少 OrderedDict 与 `warnings` 之外的 `serialization_alias`/key 类型非 str 时严格 JSON key 转换（如 int key 转字符串）的组合，以及 max_length 等序列化侧约束的行为验证（序列化侧不施加约束属预期，但未显式断言）。",
+            "suggestion": "补充 int key 序列化为 JSON 字符串、以及带有额外序列化配置时的行为断言，防止未来回归。",
+            "group": "g2",
+            "source": "llm",
+            "anchor_status": "hunk",
+            "anchored_line": 32
+          },
+          {
+            "file": "pydantic/_internal/_validators.py",
+            "line": 521,
+            "existing_code": "    collections.Counter: collections.Counter,",
+            "level": "LOW",
+            "type": "correctness",
+            "confidence": 0.4,
+            "description": "MAPPING_ORIGIN_MAP 中删除了 typing.OrderedDict / collections.OrderedDict / typing_extensions.OrderedDict 的映射。此映射仍被 _mapping_schema 用于 `mapped_origin = MAPPING_ORIGIN_MAP[tp]`。若仍有代码路径以 OrderedDict 作为 tp 调用 _mapping_schema（例如依赖类型作为 Mapping 子类被通用映射处理），将触发 KeyError。需确认所有 OrderedDict 分支均已改走 _ordered_dict_schema。",
+            "suggestion": "确认 _mapping_schema 不会被 OrderedDict 调用（生成器已改走 _ordered_dict_schema），或对 MAPPING_ORIGIN_MAP 的缺失 key 使用 .get 并保留 OrderedDict 映射作为兜底，避免 KeyError。",
+            "group": "g2",
+            "source": "llm",
+            "anchor_status": "fulltext",
+            "anchored_line": 521
+          },
+          {
+            "file": "tests/types/test_defaultdict.py",
+            "line": 46,
+            "existing_code": "    (dict, {}),\n    (OrderedDict, OrderedDict()),",
+            "level": "LOW",
+            "type": "missing-test",
+            "confidence": 0.35,
+            "description": "在 test_defaultdict 的参数化列表中新增了 (OrderedDict, OrderedDict()) 用例，但该用例仅覆盖 Python 输入路径（validate_python 构造 defaultdict），未覆盖 JSON 输入/输出路径；同时 OrderedDict 在此处作为 defaultdict 的 default_factory 使用，与本次新增的 OrderedDict 类型支持（ordered_dict_type 错误码、Strict 模式、序列化）属于不同代码路径，容易让人误以为 OrderedDict 类型本身已在本文件被验证。",
+            "suggestion": "建议在该用例旁补充说明其仅验证 default_factory 场景，或另建用例验证 OrderedDict 作为字段类型的 validate_json/dump_json 行为。",
+            "group": "g3",
+            "source": "llm",
+            "anchor_status": "fulltext",
+            "anchored_line": 46
+          }
+        ],
+        "job_id": "eval_C_pydantic_pydantic_13796_1789876926",
+        "repo": "pydantic/pydantic",
+        "pr_number": 13796
+      },
+      {
+        "findings": [],
+        "job_id": "eval_C_pydantic_pydantic_13699_1789877058",
+        "repo": "pydantic/pydantic",
+        "pr_number": 13699
+      },
+      {
+        "findings": [
+          {
+            "file": "pydantic/experimental/pipeline.py",
+            "line": 485,
+            "existing_code": "_LENGTH_SCHEMA_TYPES = frozenset({'str', 'bytes', 'list', 'tuple', 'set', 'frozenset', 'dict', 'generator'})",
+            "level": "MEDIUM",
+            "type": "correctness",
+            "confidence": 0.4,
+            "description": "新增的 _LENGTH_SCHEMA_TYPES 集合包含 'generator'，但未包含 pydantic-core 同样支持 min_length/max_length 的 'deque'（queue schema）。原代码本来也不含 deque，但既然本次将长度约束的目标类型显式归纳为集合，遗漏 deque 会导致 validate_as(deque).len(...) 走函数回退路径而非原生长度约束，行为与其它集合类型不一致（且 generator 被加入而 deque 被遗漏，集合语义不完整）。",
+            "suggestion": "确认 pydantic-core 长度约束支持的类型集合，把 'deque' 一并纳入 _LENGTH_SCHEMA_TYPES，或补充注释说明为何只列这些类型。",
+            "group": "g0",
+            "source": "llm",
+            "anchor_status": "hunk",
+            "anchored_line": 485
+          },
+          {
+            "file": "pydantic/experimental/pipeline.py",
+            "line": 550,
+            "existing_code": "            def check_len(v: Any) -> bool:\n                len_v = len(v)\n                if max_len is not None:\n                    return min_len <= len_v <= max_len\n                return min_len <= len_v",
+            "level": "LOW",
+            "type": "correctness",
+            "confidence": 0.3,
+            "description": "回退分支的 check_len 直接调用 len(v)，当回退路径被触发且 v 为不支持 len() 的对象（如 None、int 或自定义对象）时会抛出 TypeError，而该异常不会像 validate_as 的约束那样被转换成 ValidationError（非 ValueError），可能导致非预期异常逃逸。原实现同样使用 len(v)，因此非本次新引入的回归，但本次重构未加防护。",
+            "suggestion": "考虑捕获 TypeError 并抛出 ValueError（或改用 PydanticCustomError），使长度约束校验失败时统一产生 ValidationError。",
+            "group": "g0",
+            "source": "llm",
+            "anchor_status": "fulltext",
+            "anchored_line": 550
+          }
+        ],
+        "job_id": "eval_C_pydantic_pydantic_13659_1789877169",
+        "repo": "pydantic/pydantic",
+        "pr_number": 13659
+      },
+      {
+        "findings": [
+          {
+            "file": "src/anyio/_core/_synchronization.py",
+            "line": 295,
+            "existing_code": "        if self._lock.statistics().owner != get_current_task():",
+            "level": "MEDIUM",
+            "type": "unsupported-lock-type",
+            "confidence": 0.5,
+            "description": "Condition.__init__ 接受任意 Lock 实例（lock: Lock | None），_check_acquired() 现在改为依赖底层锁的 statistics().owner 来判断持有者。若传入的锁对象未实现 statistics()（例如自定义的 Lock 子类/鸭子类型实现，或旧版/第三方后端锁包装），notify()/notify_all() 将抛出 AttributeError 而非原本的 RuntimeError，属于行为回归。",
+            "suggestion": "在 _check_acquired() 中先判断底层锁是否有可用的 statistics 接口（hasattr/getattr 兜底），或在 Condition 文档/类型层面明确要求底层锁必须提供 statistics()，避免 AttributeError 泄漏给调用方。",
+            "group": "g0",
+            "source": "llm",
+            "anchor_status": "hunk",
+            "anchored_line": 295
+          }
+        ],
+        "job_id": "eval_C_agronholm_anyio_1320_1789877264",
+        "repo": "agronholm/anyio",
+        "pr_number": 1320
+      },
+      {
+        "findings": [
+          {
+            "file": "src/anyio/_backends/_asyncio.py",
+            "line": 773,
+            "existing_code": "        self._future.set_result(value)\n        self._spawn_scope._reparent(self._target_scope)",
+            "level": "MEDIUM",
+            "type": "correctness",
+            "confidence": 0.45,
+            "description": "started() 中先 set_result(value) 再 _reparent()：set_result 会立即唤醒等待 start() 返回的父任务，虽然同一线程内不会抢占执行，但父任务被唤醒后可能在本任务完成 reparent 前观察到该任务仍挂在 caller 的 cancel scope 上（例如父任务恢复后在 await 检查点上，该任务尚未加入 target scope 的 _tasks/_child_scopes），造成取消语义上的短暂不一致；同时 reparent 之后 _task_states[task].cancel_scope 仍是旧的 caller scope 或 spawn_scope，未同步更新为 _target_scope，后续依赖 TaskState.cancel_scope 的逻辑（如 _spawn 中继承、_deliver_cancellation 遍历）可能读到过期的 scope。建议先完成 reparent（并同步更新 _task_states 中的 cancel_scope），再 set_result 通知父任务。",
+            "suggestion": "先 _reparent 并更新 _task_states[task].cancel_scope，再调用 self._future.set_result(value)。",
+            "group": "g0",
+            "source": "llm",
+            "anchor_status": "fulltext",
+            "anchored_line": 773
+          },
+          {
+            "file": "src/anyio/_backends/_asyncio.py",
+            "line": 1009,
+            "existing_code": "        task_status: _AsyncioTaskStatus[Any] = _AsyncioTaskStatus(\n            future, id(self.cancel_scope._host_task), self.cancel_scope, CancelScope()\n        )",
+            "level": "MEDIUM",
+            "type": "resource-leak",
+            "confidence": 0.4,
+            "description": "每个 start() 调用都会新建一个 CancelScope() 作为 spawn_scope，该 scope 只被 TaskHandle 与 _AsyncioTaskStatus 持有。若被启动的任务在调用 started() 之前就异常/被取消退出（_spawn 中 task_done 抛 'Child exited without calling task_status.started()' 的路径），该 CancelScope 从未挂到任何父 scope，其 _tasks/_child_scopes 清理逻辑不会执行，且没有显式 close/dispose，可能残留引用与状态（尤其当它曾作为 initial_scope 被加入 _tasks 或作为 _parent_scope 被其他子 scope 引用时）。建议在任务未成功 started 的清理路径中显式处理该临时 CancelScope（或确认其生命周期完全由任务自身托管）。",
+            "suggestion": "在 start()/_spawn 的失败清理路径中显式释放临时 CancelScope，或复用调用方 scope 避免额外分配。",
+            "group": "g0",
+            "source": "llm",
+            "anchor_status": "hunk",
+            "anchored_line": 1009
+          },
+          {
+            "file": "tests/test_taskgroups.py",
+            "line": 1956,
+            "existing_code": "    assert th is not None\n    await th.wait()\n    assert th.return_value == \"started\"",
+            "level": "LOW",
+            "type": "missing-test",
+            "confidence": 0.6,
+            "description": "新增测试只覆盖了 inner_tg 被 cancel 前 started() 成功的正例，未覆盖 PR 描述中的关键边界：调用方 start() 自身被取消（future.cancelled() 分支）以及 started() 被调用两次时的 RuntimeError 分支；这两条新增分支（if self._future.done(): ... return / raise RuntimeError）在本次变更中无测试覆盖。",
+            "suggestion": "补充用例：一是 start() 的调用任务被取消使 future 处于 cancelled 状态时 started() 直接返回不报错、也不 reparent；二是重复调用 started() 时仍抛 RuntimeError。",
+            "group": "g0",
+            "source": "llm",
+            "anchor_status": "hunk",
+            "anchored_line": 1956
+          }
+        ],
+        "job_id": "eval_C_agronholm_anyio_1198_1789877378",
+        "repo": "agronholm/anyio",
+        "pr_number": 1198
+      },
+      {
+        "findings": [
+          {
+            "file": "src/anyio/_backends/_asyncio.py",
+            "line": 0,
+            "existing_code": "        except BaseException:\n            with suppress(BaseException):\n                wrapper_coro.close()\n\n            with suppress(BaseException):\n                coro.close()\n\n            raise",
+            "level": "MEDIUM",
+            "type": "correctness/error-swallow",
+            "confidence": 0.275,
+            "description": "新增的清理逻辑用 `with suppress(BaseException)` 包裹 wrapper_coro.close() 与 coro.close()，会无声吞掉协程关闭过程中抛出的任意异常（包括 CancelledError、KeyboardInterrupt、SystemExit），且没有任何日志或注释说明。相反，若 coro.close() 抛异常（例如协程在 finally 中重新 raise），用户只会看到 task factory 的原始异常，真实的清理失败被完全隐藏。",
+            "suggestion": "建议至少只 suppress 预期的异常类型（如 RuntimeError(\"coroutine is being awaited already\")），或在吞掉时用 logger 记录异常信息，避免掩盖真实的清理错误。",
+            "group": "g0",
+            "source": "llm",
+            "anchor_status": "unanchored",
+            "anchored_line": 0
+          },
+          {
+            "file": "tests/test_taskgroups.py",
+            "line": 168,
+            "existing_code": "        assert getcoroutinestate(task_func_coro) is CORO_CLOSED",
+            "level": "LOW",
+            "type": "test-hygiene",
+            "confidence": 0.4,
+            "description": "测试断言中 `is CORO_CLOSED` 依赖 CPython 实现细节：inspect.CORO_CLOSED 是字符串常量 'CORO_CLOSED'，getcoroutinestate() 返回值经字符串驻留后 `is` 通常成立，但语义上属于用 `is` 比较字面量/字符串值（Python 仅对标识符式字符串驻留保证），在非 CPython 实现或未来变更下可能失效。",
+            "suggestion": "改用 `==` 比较（getcoroutinestate(task_func_coro) == CORO_CLOSED），语义更稳健且符合 Python 惯例。",
+            "group": "g0",
+            "source": "llm",
+            "anchor_status": "hunk",
+            "anchored_line": 168
+          }
+        ],
+        "job_id": "eval_C_agronholm_anyio_1275_1789877458",
+        "repo": "agronholm/anyio",
+        "pr_number": 1275
+      },
+      {
+        "findings": [],
+        "job_id": "eval_C_agronholm_anyio_1223_1789877569",
+        "repo": "agronholm/anyio",
+        "pr_number": 1223
+      },
+      {
+        "findings": [],
+        "job_id": "eval_C_agronholm_anyio_1279_1789877681",
+        "repo": "agronholm/anyio",
+        "pr_number": 1279
+      },
+      {
+        "findings": [
+          {
+            "file": "tests/test_lazyimport.py",
+            "line": 109,
+            "existing_code": "    input=json.dumps(DEPRECATIONS).encode(),",
+            "level": "INFO",
+            "type": "dead-parameter",
+            "confidence": 0.65,
+            "description": "子进程脚本通过 f-string 插值已自带 deprecated_items，stdin 传入的 JSON 数据在脚本中完全没有被读取（脚本内无 sys.stdin 调用），这段 input 是死参数，容易误导读者以为数据来源是 stdin。",
+            "suggestion": "删除该 input 参数，或改为在脚本内 json.load(sys.stdin) 读取，保持一致。",
+            "group": "g2",
+            "source": "llm",
+            "anchor_status": "hunk",
+            "anchored_line": 109
+          },
+          {
+            "file": "tests/test_lazyimport.py",
+            "line": 105,
+            "existing_code": "    # script_path = Path(__file__).parent / \"samplescript.py\"\n    # assert script_path.is_file()",
+            "level": "LOW",
+            "type": "leftover-comment",
+            "confidence": 0.7,
+            "description": "测试中残留两行被注释掉的调试代码（samplescript.py 路径断言），属于提交前未清理的死代码。",
+            "suggestion": "移除这两行注释。",
+            "group": "g2",
+            "source": "llm",
+            "anchor_status": "hunk",
+            "anchored_line": 105
+          },
+          {
+            "file": "tests/test_lazyimport.py",
+            "line": 44,
+            "existing_code": "    subprocess.run([interpreter_path, \"-m\", \"pip\", \"install\", project_root], check=True)",
+            "level": "LOW",
+            "type": "test-network-dependency",
+            "confidence": 0.45,
+            "description": "测试通过 pip install 项目根目录来创建 sourceless 安装，pip 在构建/解析依赖时可能访问网络（如缺少本地 wheel 缓存时），且该步骤耗时较长（虽然有 timeout(60)），在离线 CI 环境可能不稳定。",
+            "suggestion": "可考虑使用 pip install --no-build-isolation --no-index 或 --no-deps 以减少网络依赖，并适当放宽 timeout。",
+            "group": "g2",
+            "source": "llm",
+            "anchor_status": "hunk",
+            "anchored_line": 44
+          },
+          {
+            "file": "tests/test_lazyimport.py",
+            "line": 33,
+            "existing_code": "    subprocess.run([sys.executable, \"-m\", \"venv\", tmp_path], check=True)",
+            "level": "LOW",
+            "type": "resource-cleanup",
+            "confidence": 0.25,
+            "description": "测试在 tmp_path 中创建虚拟环境并安装项目，但未显式清理；由于使用 pytest 的 tmp_path fixture，由框架负责清理，通常可接受，仅在 CI 磁盘紧张时可能有影响。",
+            "suggestion": "保持现状即可；如需可显式删除以加速回收磁盘。",
+            "group": "g2",
+            "source": "llm",
+            "anchor_status": "hunk",
+            "anchored_line": 33
+          }
+        ],
+        "job_id": "eval_C_agronholm_anyio_1169_1789877788",
+        "repo": "agronholm/anyio",
+        "pr_number": 1169
+      },
+      {
+        "findings": [],
+        "job_id": "eval_C_agronholm_anyio_1269_1789877978",
+        "repo": "agronholm/anyio",
+        "pr_number": 1269
+      }
+    ],
+    "D": [
+      {
+        "findings": [
+          {
+            "file": "pydantic-core/python/pydantic_core/core_schema.py",
+            "line": 0,
+            "existing_code": "    metadata: dict[str, Any]\n    serialization: IncExDictOrElseSerSchema\n\n\ndef ordered_dict_schema(",
+            "level": "LOW",
+            "type": "type-mismatch",
+            "confidence": 0.25,
+            "description": "OrderedDictSchema 的 serialization 字段类型标注为 IncExDictOrElseSerSchema，但构造函数 ordered_dict_schema 的 serialization 参数标注为 SerSchema | None。两者不一致；对照 frozendict_schema 的 FrozenDictSchema(TypedDict) 也使用了 IncExDictOrElseSerSchema，而函数参数同为 SerSchema。此处虽与 frozendict 保持了一致，但 OrderedDict 并不支持 inc/ex dict 子集序列化（那是 dict 类型的行为），将其标注为 IncExDictOrElseSerSchema 可能误导使用者以为可用 IncExDict 形式。",
+            "suggestion": "确认 OrderedDict 序列化是否真的支持 IncExDictOrElseSerSchema；若仅在 dict 上有效，应将 OrderedDictSchema.serialization 标注为 SerSchema，或在文档中明确其含义。",
+            "group": "g0",
+            "source": "llm",
+            "anchor_status": "unanchored",
+            "anchored_line": 0
+          },
+          {
+            "file": "pydantic-core/src/serializers/ob_type.rs",
+            "line": 91,
+            "existing_code": "            ordered_dict_object: py\n                .import(\"collections\")\n                .unwrap()\n                .getattr(\"OrderedDict\")\n                .unwrap()\n                .unbind(),",
+            "level": "LOW",
+            "type": "error-handling",
+            "confidence": 0.35,
+            "description": "构造函数中对 `collections` 的导入与 `OrderedDict` 属性获取使用了 `.unwrap()`，而同一初始化块里 `frozendict_object` 用的是 `.ok().map(Bound::unbind)` 的容错写法。若环境中 `OrderedDict` 不可用（极端受限的解释器/嵌入式环境），会直接 panic 而非给出可诊断的错误。",
+            "suggestion": "与 `frozendict_object` 保持一致，改为可失败/可空形式（例如 `.ok()` 返回 `Option<Py<PyAny>>` 并在类型判断处判空），避免初始化期 panic。",
+            "group": "g1",
+            "source": "llm",
+            "anchor_status": "hunk",
+            "anchored_line": 91
+          },
+          {
+            "file": "pydantic-core/src/serializers/type_serializers/ordered_dict.rs",
+            "line": 97,
+            "existing_code": "                let new_dict = PyDict::new(py);\n                for item in mapping.items()?.iter() {\n                    let (key, value) = item.extract::<(Bound<PyAny>, Bound<PyAny>)>()?;\n                    if let Some(next_include_exclude) = self.filter.key_filter(&key, state)? {",
+            "level": "MEDIUM",
+            "type": "correctness",
+            "confidence": 0.3,
+            "description": "`to_python` 中通过 `mapping.items()` 迭代并 `extract::<(Bound<PyAny>, Bound<PyAny>)>()`，若 OrderedDict 的项数在迭代过程中被用户自定义 `items()`/`__iter__` 改变（或返回长度不为 2 的元素），extract 会报错；更关键的是这里假定 `items()` 返回的是键值对二元组，而 `collections.OrderedDict` 允许被继承覆写。缺少对非标准 mapping 的降级路径，会抛出不易理解的 Python 异常而不是走 fallback 或给出 pydantic 校验错误。",
+            "suggestion": "对 `items()` 的结果做长度/结构检查，或捕获 extract 失败并转为带上下文的信息；至少确保异常信息能指明是 OrderedDict 序列化失败。",
+            "group": "g1",
+            "source": "llm",
+            "anchor_status": "hunk",
+            "anchored_line": 97
+          },
+          {
+            "file": "pydantic-core/src/validators/ordered_dict.rs",
+            "line": 48,
+            "existing_code": "        let name = format!(\n            \"{}[{},{}]\",\n            Self::EXPECTED_TYPE,\n            key_validator.get_name(),\n            value_validator.get_name()\n        );",
+            "level": "LOW",
+            "type": "consistency",
+            "confidence": 0.3,
+            "description": "校验器的 name 使用 `{},{}`（逗号后无空格），而序列化器 `OrderedDictSerializer` 使用 `{}, {}`（逗号后有空格），两者格式不一致，会影响错误信息/调试输出的一致性（dict/frozendict 现有实现需对齐确认）。",
+            "suggestion": "统一为与 dict/frozendict 现有格式一致的写法。",
+            "group": "g1",
+            "source": "llm",
+            "anchor_status": "hunk",
+            "anchored_line": 48
+          },
+          {
+            "file": "pydantic/_internal/_known_annotated_metadata.py",
+            "line": 75,
+            "existing_code": "    (DICT_CONSTRAINTS, ('dict', 'frozendict', 'ordered-dict')),",
+            "level": "LOW",
+            "type": "schema-handling",
+            "confidence": 0.3,
+            "description": "_known_annotated_metadata 中把 'ordered-dict' 归入 DICT_CONSTRAINTS，但本组变更未在本文件内为 ordered-dict 补充其他相关处理（如约束应用/错误信息映射中涉及字典类型的分支），需确认所有按 schema type 判断字典语义的地方（如 min_length/max_length 应用的错误 field_type 名称）都已覆盖 ordered-dict，否则可能出现约束被静默忽略或错误提示与实际类型不一致。",
+            "suggestion": "全仓搜索所有以 'dict'/'frozendict' 字符串集合判断字典语义的位置，逐一确认是否需要加入 'ordered-dict'；若某处有意不加入，请加注释说明。",
+            "group": "g2",
+            "source": "llm",
+            "anchor_status": "hunk",
+            "anchored_line": 75
+          },
+          {
+            "file": "tests/types/test_ordered_dict.py",
+            "line": 147,
+            "existing_code": "        y: OrderedDict = OrderedDict()",
+            "level": "LOW",
+            "type": "test-quality",
+            "confidence": 0.35,
+            "description": "测试模型用裸 `OrderedDict`（无参数）作为字段类型，且默认值在类定义时即被构造为可变对象 `OrderedDict()`。该可变默认值会被所有实例共享，且此处并未验证默认值是否被深拷贝/独立生成，属于可变默认值反模式在测试代码中的体现，容易掩盖字段默认值共享问题（Python 清单中的可变默认参数条目）。",
+            "suggestion": "改为 `y: OrderedDict = Field(default_factory=OrderedDict)`，或用 `OrderedDict[str, int]` 明确键值类型，避免共享可变默认实例。",
+            "group": "g3",
+            "source": "llm",
+            "anchor_status": "hunk",
+            "anchored_line": 147
+          },
+          {
+            "file": "tests/types/test_ordered_dict.py",
+            "line": 172,
+            "existing_code": "    assert ta.json_schema() == {\n        'type': 'object',\n        'additionalProperties': {'type': 'integer'},\n        'minProperties': 1,\n        'maxProperties': 2,\n    }",
+            "level": "INFO",
+            "type": "test-coverage",
+            "confidence": 0.25,
+            "description": "新增的 OrderedDict 支持引入了大量行为分支（严格模式、约束、嵌套、Any 序列化、JSON schema 等），但 diff 中仅对错误类型字符串（如 'ordered_dict_type'）与 schema 做了断言，`test_ordered_dict_strict` 里对错误信息的断言只取 errors()[0]['type']，缺少对错误消息文本与 loc 的校验，回归时错误文案变化不会被捕获。",
+            "suggestion": "参考同文件既有做法，用 insert_assert 记录完整 errors(include_url=False) 输出，覆盖 msg/loc 字段。",
+            "group": "g3",
+            "source": "llm",
+            "anchor_status": "hunk",
+            "anchored_line": 172
+          }
+        ],
+        "job_id": "eval_D_pydantic_pydantic_13796_1789878090",
+        "repo": "pydantic/pydantic",
+        "pr_number": 13796
+      },
+      {
+        "findings": [
+          {
+            "file": "tests/test_types.py",
+            "line": 0,
+            "existing_code": "    class Model(BaseModel):\n        f: SecretStr = None\n\n    assert Model().model_dump() == {'f': None}\n    assert Model().model_dump_json() == '{\"f\":null}'",
+            "level": "LOW",
+            "type": "missing-test",
+            "confidence": 0.3,
+            "description": "本次修复改动了 _SecretField 基类的序列化配置（when_used 由 'always' 改为 'unless-none'），该基类同时被 SecretStr、SecretBytes、SecretDate 继承，影响范围一致。但新增的回归测试仅覆盖 SecretStr，且只验证了默认（python）模式的 model_dump() 与 model_dump_json()，未覆盖 SecretBytes/SecretDate 以及 model_dump(mode='json') 的路径，回归防护不足。",
+            "suggestion": "建议将测试参数化以覆盖 SecretBytes/SecretDate（或在测试中补充断言），并补充 `Model().model_dump(mode='json') == {'f': None}` 的断言，确保所有共享该基类的类型在 None 场景下均不会触发 _serialize_secret_field 崩溃。",
+            "group": "g0",
+            "source": "llm",
+            "anchor_status": "unanchored",
+            "anchored_line": 0
+          }
+        ],
+        "job_id": "eval_D_pydantic_pydantic_13699_1789878228",
+        "repo": "pydantic/pydantic",
+        "pr_number": 13699
+      },
+      {
+        "findings": [
+          {
+            "file": "pydantic/experimental/pipeline.py",
+            "line": 485,
+            "existing_code": "_LENGTH_SCHEMA_TYPES = frozenset({'str', 'bytes', 'list', 'tuple', 'set', 'frozenset', 'dict', 'generator'})",
+            "level": "MEDIUM",
+            "type": "correctness",
+            "confidence": 0.5,
+            "description": "`_LENGTH_SCHEMA_TYPES` 新增了 `'generator'`，声明 generator 核心 schema 原生支持 min_length/max_length。但 generator 是惰性一次性迭代器，pydantic-core 的长度约束需要消费/物化迭代器才能得到长度，行为与 str/list 等不同；本组新增测试 test_len_constraint_on_generator 传入的是 list（`[1, 2, 3]`），并未真正覆盖 generator schema 路径，因此该分支实际未被验证，存在将约束直接写入 schema 后行为不符预期的风险。",
+            "suggestion": "确认 pydantic-core 对 'generator' schema 确实原生支持 min_length/max_length 并补充真实的 generator（如生成器函数/迭代器）用例；若不确定则应从 _LENGTH_SCHEMA_TYPES 中移除 'generator'，退回函数检查分支。",
+            "group": "g0",
+            "source": "llm",
+            "anchor_status": "hunk",
+            "anchored_line": 485
+          }
+        ],
+        "job_id": "eval_D_pydantic_pydantic_13659_1789878277",
+        "repo": "pydantic/pydantic",
+        "pr_number": 13659
+      },
+      {
+        "findings": [
+          {
+            "file": "src/anyio/_core/_synchronization.py",
+            "line": 295,
+            "existing_code": "        if self._lock.statistics().owner != get_current_task():",
+            "level": "LOW",
+            "type": "performance/statistics-overhead",
+            "confidence": 0.5,
+            "description": "_check_acquired() 每次调用都通过 self._lock.statistics() 构造一个 LockStatistics 对象进行比较。Condition.wait()（行 341，每次等待锁前）和 _check_acquired 的其它调用点都会走这条路径，而原先只是读取一个已缓存的 _owner_task 字段。统计对象构造在热路径上引入额外开销，且 statistics() 的 owner 语义依赖后端实现（例如 trio 后端可能不填充 owner），存在行为不一致风险。",
+            "suggestion": "若仅为去除 _owner_task 冗余状态，可考虑保留轻量的 owner 查询（如锁对象提供 owner 属性）或缓存 last-known owner；同时确认各后端 statistics().owner 与 get_current_task() 的语义一致，并在文档/测试中覆盖多后端。",
+            "group": "g0",
+            "source": "llm",
+            "anchor_status": "hunk",
+            "anchored_line": 295
+          }
+        ],
+        "job_id": "eval_D_agronholm_anyio_1320_1789878366",
+        "repo": "agronholm/anyio",
+        "pr_number": 1320
+      },
+      {
+        "findings": [
+          {
+            "file": "src/anyio/_backends/_asyncio.py",
+            "line": 929,
+            "existing_code": "        spawn_scope = task_status._spawn_scope if task_status is not None else None\n        handle = TaskHandle(coro, name, cancel_scope=spawn_scope)",
+            "level": "MEDIUM",
+            "type": "correctness",
+            "confidence": 0.4,
+            "description": "start() 路径下 TaskHandle 使用外部新建的 CancelScope()（spawn_scope），而 start_soon() 路径下 spawn_scope 为 None，TaskHandle 会自行创建 CancelScope。这意味着 TaskGroup.start() 启动的任务在 started() 之前，其取消作用域是该临时 spawn_scope 并被 _reparent 迁移到目标 group；但如果 started() 从未被调用且任务异常/被取消，该 spawn_scope 不会被重新挂回调用者的作用域，容易与 _spawn 中 initial_scope 的选择（caller_state.cancel_scope）不一致，导致取消传播路径出现分叉。",
+            "suggestion": "统一 _spawn 与 start() 中 cancel_scope 的来源，明确 spawn_scope 的生命周期与归属；并在 started() 未调用而任务退出/被取消时补充范围回收与回归测试（含 unmanaged caller、nested 子作用域等场景）。",
+            "group": "g0",
+            "source": "llm",
+            "anchor_status": "hunk",
+            "anchored_line": 929
+          },
+          {
+            "file": "src/anyio/_backends/_asyncio.py",
+            "line": 766,
+            "existing_code": "        if self._future.done():\n            if not self._future.cancelled():\n                raise RuntimeError(\"called 'started' twice on the same task status\")\n            else:\n                # Caller of start() was cancelled, nothing to reparent\n                return",
+            "level": "LOW",
+            "type": "correctness",
+            "confidence": 0.35,
+            "description": "started() 中当 future 已被取消时直接 return，跳过 _reparent 是可接受的（调用方已取消），但此时 _task_states[task].parent_id 已在第 765 行被修改为 self._parent_id，而任务的 cancel_scope 仍留在原 spawn_scope/调用者作用域中，造成 parent_id 与 cancel_scope 归属不一致，可能影响后续取消链的传播与调试定位。",
+            "suggestion": "在提前 return 的分支中一并回退 parent_id 的写入，或将 parent_id 的更新移动到 reparent 之后再执行，保证状态一致性。",
+            "group": "g0",
+            "source": "llm",
+            "anchor_status": "hunk",
+            "anchored_line": 766
+          }
+        ],
+        "job_id": "eval_D_agronholm_anyio_1198_1789878470",
+        "repo": "agronholm/anyio",
+        "pr_number": 1198
+      },
+      {
+        "findings": [
+          {
+            "file": "src/anyio/_backends/_asyncio.py",
+            "line": 907,
+            "existing_code": "            with suppress(BaseException):\n                coro.close()",
+            "level": "INFO",
+            "type": "resource-cleanup",
+            "confidence": 0.3,
+            "description": "捕获 BaseException 后关闭 wrapper_coro 与原始 coro 的做法是合理的清理逻辑，但 wrapper_coro 是任何拥有 close() 的可关闭对象（handle._run_coro() 的返回值），因此不需要额外类型保护；此处的 suppress 只会吞掉 close 期间抛出的异常，符合本次修复的目的（避免 unawaited coroutine 警告）。当前仅关闭 wrapper_coro 与 coro，而未记录任何日志，对于排查自定义 task factory 失败原因会略缺上下文（异常本身已 re-raise，尚可接受）。",
+            "suggestion": "可考虑在 suppress 块外附加 logger.debug 记录被关闭的协程名称，便于定位自定义 task factory 失败现场；非必须。",
+            "group": "g0",
+            "source": "llm",
+            "anchor_status": "hunk",
+            "anchored_line": 907
+          },
+          {
+            "file": "tests/test_taskgroups.py",
+            "line": 168,
+            "existing_code": "        assert getcoroutinestate(task_func_coro) is CORO_CLOSED",
+            "level": "LOW",
+            "type": "test-coverage",
+            "confidence": 0.45,
+            "description": "新增测试只断言 getcoroutinestate(...) is CORO_CLOSED，但在 'suspend=False' 的 return 参数下，原始 task_func_coro 会被 wrapper 正常推进到自然结束（StopIteration/return 而非 close），此时 CORO_CLOSED 同样成立，因此该断言无法区分「协程被正常跑完」与「协程被修复代码显式 close 掉」这两种路径，测试对回归的判别力被削弱。",
+            "suggestion": "对 suspend=False 的 return 分支增加额外断言（例如 mock/追踪 coro.close 是否被调用，或断言在 factory 抛错前协程尚未被执行过），以精确验证修复逻辑只关闭、不驱动协程。",
+            "group": "g0",
+            "source": "llm",
+            "anchor_status": "hunk",
+            "anchored_line": 168
+          }
+        ],
+        "job_id": "eval_D_agronholm_anyio_1275_1789878551",
+        "repo": "agronholm/anyio",
+        "pr_number": 1275
+      },
+      {
+        "findings": [],
+        "job_id": "eval_D_agronholm_anyio_1223_1789878670",
+        "repo": "agronholm/anyio",
+        "pr_number": 1223
+      },
+      {
+        "findings": [],
+        "job_id": "eval_D_agronholm_anyio_1279_1789878712",
+        "repo": "agronholm/anyio",
+        "pr_number": 1279
+      },
+      {
+        "findings": [
+          {
+            "file": "tests/test_deprecations.py",
+            "line": 0,
+            "existing_code": "-def test_broken_worker_interpreter_deprecation() -> None:\n-    with pytest.warns(DeprecationWarning):\n-        DeprecatedClass = anyio.BrokenWorkerIntepreter\n-    assert DeprecatedClass is anyio.BrokenWorkerInterpreter",
+            "level": "MEDIUM",
+            "type": "missing-test",
+            "confidence": 0.35,
+            "description": "本次变更整体删除了 tests/test_deprecations.py，其中唯一用例覆盖 anyio 对弃用名称 BrokenWorkerIntepreter（拼写错误的别名）的 DeprecationWarning 行为。删除后，anyio.BrokenWorkerIntepreter 的弃用告警与别名等价性（DeprecatedClass is anyio.BrokenWorkerInterpreter）不再有任何测试保护，后续重构若移除该别名或去掉告警将不会被发现。",
+            "suggestion": "若弃用逻辑仍保留（src/anyio/__init__.py 中的 __getattr__ 兼容分支），应保留或改写该测试；若确实要移除该弃用别名，需在同一变更中同步删除 src/anyio/__init__.py 里的对应实现与 versionhistory 说明，避免出现“实现有、测试无”或“文档有、实现无”的不一致。",
+            "group": "g1",
+            "source": "llm",
+            "anchor_status": "unanchored",
+            "anchored_line": 0
+          },
+          {
+            "file": "tests/streams/test_memory.py",
+            "line": 28,
+            "existing_code": "if TYPE_CHECKING:\n    from anyio.abc import ObjectReceiveStream, ObjectSendStream, TaskStatus",
+            "level": "LOW",
+            "type": "correctness",
+            "confidence": 0.4,
+            "description": "ObjectReceiveStream / ObjectSendStream / TaskStatus 被改为仅在 TYPE_CHECKING 下导入，因此运行时这些名字不存在于模块命名空间。这些名字若被用于字符串形式的注解之外的地方（例如 typing.get_type_hints()、pytest 的 parametrize 元数据解析、或作为运行时实参传递），会在运行时抛 NameError。当前测试文件首行有 from __future__ import annotations，直接注解可延后求值，故风险较低，但需确认没有任何运行时引用。",
+            "suggestion": "检索 test_memory.py 中这三个名字的全部使用点，确认只出现在注解或字符串注解中；如存在运行时引用（如 cast、isinstance、get_type_hints），应保留运行时导入或改为字符串/引号形式引用。",
+            "group": "g1",
+            "source": "llm",
+            "anchor_status": "hunk",
+            "anchored_line": 28
+          },
+          {
+            "file": "tests/test_from_thread.py",
+            "line": 33,
+            "existing_code": "from anyio.abc import TaskStatus\nfrom anyio.from_thread import BlockingPortal, start_blocking_portal",
+            "level": "LOW",
+            "type": "correctness",
+            "confidence": 0.35,
+            "description": "TaskStatus 从 anyio.abc 的运行时导入被改为仅在 TYPE_CHECKING 下导入，该名字若在运行时代码（如协程签名外的引用、cast 或 fixture 逻辑）中被使用会产生 NameError。需确认文件是否仍保留 from __future__ import annotations 且 TaskStatus 仅出现在注解位置。",
+            "suggestion": "确认 test_from_thread.py 中 TaskStatus 仅用于注解（且文件含 from __future__ import annotations），否则保留运行时导入。",
+            "group": "g1",
+            "source": "llm",
+            "anchor_status": "fulltext",
+            "anchored_line": 33
+          },
+          {
+            "file": "tests/test_lazyimport.py",
+            "line": 60,
+            "existing_code": "    anyio_package_path = site_packages_path / \"anyio\"\n    assert anyio_package_path.is_dir()\n    subprocess.run(\n        [interpreter_path, \"-m\", \"compileall\", \"-b\", anyio_package_path], check=True\n    )",
+            "level": "LOW",
+            "type": "missing-subprocess-timeout",
+            "confidence": 0.5,
+            "description": "本用例中所有 subprocess.run 调用（创建虚拟环境、pip install、compileall、运行探针脚本）均未设置 timeout，而测试本身只靠 @pytest.mark.timeout(60) 兜底。pip install 若因网络或索引源问题挂起，测试会以 60 秒超时（TimeoutExpired）失败并吞掉真实原因，取证信息远不如 subprocess.run(..., timeout=...) 明确。",
+            "suggestion": "为各 subprocess.run 显式传入 timeout（如 60/120 秒），让失败原因直接体现为 subprocess.TimeoutExpired 而非 pytest-timeout 触发。",
+            "group": "g2",
+            "source": "llm",
+            "anchor_status": "hunk",
+            "anchored_line": 60
+          },
+          {
+            "file": "tests/test_lazyimport.py",
+            "line": 107,
+            "existing_code": "    process = subprocess.run(\n        [interpreter_path, \"-c\", script],\n        input=json.dumps(DEPRECATIONS).encode(),\n        capture_output=True,\n        check=True,\n    )",
+            "level": "LOW",
+            "type": "dead-parameter",
+            "confidence": 0.8,
+            "description": "探针脚本完全用内联 f-string 插值生成（如 deprecated_items = {list(DEPRECATIONS)!r}），并未从 stdin 读取任何内容，因此这里的 input=json.dumps(DEPRECATIONS).encode() 是无效参数；同时脚本用 json.dump 把结果写到 stdout、测试用 json.loads(process.stdout...) 解析，输入通道实际未被使用。",
+            "suggestion": "删除未使用的 input=... 参数（或让脚本真正从 sys.stdin 读取），避免误导后续维护者认为存在 stdin 协议。",
+            "group": "g2",
+            "source": "llm",
+            "anchor_status": "hunk",
+            "anchored_line": 107
+          }
+        ],
+        "job_id": "eval_D_agronholm_anyio_1169_1789878842",
+        "repo": "agronholm/anyio",
+        "pr_number": 1169
+      },
+      {
+        "findings": [
+          {
+            "file": "src/anyio/_backends/_asyncio.py",
+            "line": 1447,
+            "existing_code": "            if self._receive_future and not self._receive_future.done():\n                self._receive_future.set_result(None)\n            if self._send_future and not self._send_future.done():\n                self._send_future.set_result(None)",
+            "level": "INFO",
+            "type": "correctness",
+            "confidence": 0.9,
+            "description": "修复正确：在 set_result 前增加 done() 判断，避免了并发 receive/send 被取消后 future 已完成时再次 set_result 抛出 asyncio.InvalidStateError。#1267 场景下 _receive_future/_send_future 是 aclose() 中仅有的两处 set_result，均已加上守卫，修复完整。",
+            "suggestion": "无需修改。可考虑在 set_result 后用 self._receive_future = None 显式置空以增强语义清晰度（非必需）。",
+            "group": "g0",
+            "source": "llm",
+            "anchor_status": "fulltext",
+            "anchored_line": 1447
+          },
+          {
+            "file": "tests/test_sockets.py",
+            "line": 1472,
+            "existing_code": "        client = None\n        try:\n            async with await create_unix_listener(socket_path) as listener:\n                async with create_task_group() as tg:\n                    tg.start_soon(listener.serve, handler)\n                    client = await connect_unix(socket_path)\n                    await wait_all_tasks_blocked()\n                    tg.cancel_scope.cancel()\n        finally:\n            if client is not None:\n                await client.aclose()",
+            "level": "LOW",
+            "type": "test-reliability",
+            "confidence": 0.4,
+            "description": "测试用例依赖竞态时序来复现 bug：注释自承“Closing may wake the operation before cancellation reaches it”，即需要在 aclose() 触发时 future 恰好已被取消。该时序由 wait_all_tasks_blocked() + cancel_scope.cancel() 间接控制，并非确定性触发；若调度顺序变化，测试可能在 bug 存在时也通过（假阴性），从而失去回归保护价值。",
+            "suggestion": "尽量构造确定性触发路径，例如在 handler 中显式等待 on_cancel/推进至 receive/send future 已取消状态后再 aclose；或在测试中直接断言不抛出 InvalidStateError 以明确意图。",
+            "group": "g0",
+            "source": "llm",
+            "anchor_status": "hunk",
+            "anchored_line": 1472
+          }
+        ],
+        "job_id": "eval_D_agronholm_anyio_1269_1789878993",
+        "repo": "agronholm/anyio",
+        "pr_number": 1269
+      }
+    ]
+  }
+}

@@ -1,12 +1,14 @@
 from fastapi.testclient import TestClient
 
 from app.main import app
+from app.api import review as review_api
 from app.services.review_job_service import review_job_service
 from app.services.review_pipeline import ReviewPipelineResult
+from tests.memory_store import MemoryReviewJobStore
 
 
 class NoopPipeline:
-    async def run(self, job):
+    async def run(self, job, config=None, github_token=None):
         return ReviewPipelineResult(pr_info={}, filtered_files={}, parsed_diff=[])
 
 
@@ -23,8 +25,13 @@ def test_health_uses_unified_response() -> None:
 
 
 def test_create_review_job_uses_created_response() -> None:
+    store = MemoryReviewJobStore()
     original_pipeline = review_job_service._pipeline
+    original_service_store = review_job_service._store
+    original_api_store = review_api.review_job_store
     review_job_service._pipeline = NoopPipeline()
+    review_job_service._store = store
+    review_api.review_job_store = store
     client = TestClient(app)
     try:
         response = client.post(
@@ -33,6 +40,8 @@ def test_create_review_job_uses_created_response() -> None:
         )
     finally:
         review_job_service._pipeline = original_pipeline
+        review_job_service._store = original_service_store
+        review_api.review_job_store = original_api_store
 
     body = response.json()
     assert response.status_code == 200

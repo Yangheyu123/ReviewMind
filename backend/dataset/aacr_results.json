@@ -1,0 +1,2168 @@
+{
+  "config": {
+    "pos_per_lang": 4,
+    "neg_per_lang": 3,
+    "model": "deepseek-v4.1-flash",
+    "review_min_confidence": 0.4,
+    "grouping": "auto",
+    "filter": true,
+    "judge": "AACR official judge.py, semantic=mock, k=1",
+    "sampling": "per-language stratified, smallest change_line_count first"
+  },
+  "positive_summary": {
+    "prs": 40,
+    "expected_comments": 167,
+    "generated_comments": 86,
+    "precision": 0.0,
+    "recall": 0.0,
+    "f1": 0.0,
+    "noise_rate": 1.0,
+    "line_precision": 0.3605,
+    "line_recall": 0.1856,
+    "tokens_per_pr": 236530.0,
+    "seconds_per_pr": 109.4,
+    "judge": "AACR judge.py, semantic=mock(deterministic), k=1"
+  },
+  "negative_summary": {
+    "prs": 30,
+    "findings_per_pr": 2.83,
+    "false_positive_findings": 85,
+    "prs_with_findings(强行找问题率)": 0.8667,
+    "tokens_per_pr": 264574.0,
+    "seconds_per_pr": 111.1
+  },
+  "positive_results": [
+    {
+      "url": "https://github.com/lvgl/lvgl/pull/8129",
+      "lang": "C",
+      "stats": {
+        "expected_notes": 5,
+        "generated_notes": 2,
+        "line_match_count": 2,
+        "semantic_match_count": 0,
+        "line_match_rate": 1.0,
+        "semantic_match_rate": 0.0,
+        "line_recall_rate": 0.4,
+        "semantic_recall_rate": 0.0
+      },
+      "elapsed_s": 124.6,
+      "findings": [
+        {
+          "file": "src/widgets/label/lv_label_private.h",
+          "line": 54,
+          "existing_code": "    lv_point_t text_size;",
+          "level": "HIGH",
+          "category": "correctness",
+          "type_detail": "uninitialized field used as trusted geometry",
+          "confidence": 0.6,
+          "description": "新增的 label->text_size 只被赋值于 lv_label_refr_text()，但未在对象构造/创建时初始化。lv_label_iterate_characters 现在在 LV_TEXT_FLAG_EXPAND 且非 SEND_DRAW_TASK_EVENTS 时直接信任 dsc->text_size.x 作为绘制宽度 w；同时 draw_main() 中 SCROLL_CIRCULAR / SCROLL+居中对齐分支也把 lv_text_get_size 的重新计算结果替换为 label->text_size。若在 lv_label_refr_text 尚未执行过一次时就进入绘制（例如 lv_label_create 后在同一帧内以 EXPAND/SCROLL 模式绘制、或通过 lv_obj_send_event/draw 事件回调提前绘制、或创建后 text/size 直接由缓存布局触发重绘），text_size 的 x/y 为未定义值（lv_label_t 是 lv_malloc 分配，非零初始化），会导致 w 取随机值、文本截断或错位，甚至 size.y 参与滚动偏移计算产生异常动画偏移。",
+          "suggestion": "在 lv_label_constructor / 创建路径中显式初始化 text_size（如 lv_point_set(&label->text_size, 0, 0)），或在绘制路径上增加有效性判定（例如 invalid_size_cache 标志或 text_size.x/y 均为 0 时回退到 lv_text_get_size）。",
+          "group": "g0",
+          "source": "llm",
+          "anchor_status": "hunk",
+          "anchored_line": 54
+        },
+        {
+          "file": "src/draw/lv_draw_label.c",
+          "line": 222,
+          "existing_code": "        if(base_dsc->obj && !lv_obj_has_flag(base_dsc->obj, LV_OBJ_FLAG_SEND_DRAW_TASK_EVENTS)) {\n            w = dsc->text_size.x;\n        }",
+          "level": "MEDIUM",
+          "category": "correctness",
+          "type_detail": "stale cached geometry used as limit",
+          "confidence": 0.45,
+          "description": "dsc->text_size.x 是在 lv_text_get_size(..., max_w, flag) 且 max_w 来自标签内容区宽度的条件下算出的结果；它反映的是受内容区宽度限制后的排版宽度，而 EXPAND 分支的历史语义是“不把文本宽度限制到对象宽度”，即重新用 LV_COORD_MAX 计算不受限宽度。现在两者混用，虽然 width 由 EXPAND 决定时不参与换行，但 SCROLL/SCROLL_CIRCULAR 分支用 label->text_size.x 与 txt_coords 宽度比较来决定是否滚动、以及计算滚动偏移量，会与真正不受限的文本宽度不一致（内容区变化、样式 letter_space/line_space/font 变更、或 LV_LABEL_LONG_TXT_HINT 复用 hint 的路径未必同步刷新 text_size），从而出现该滚动却不滚动、滚动范围偏短/偏长的视觉回归。",
+          "suggestion": "明确 text_size 的语义：若供 EXPAND/滚动使用，应在不受限（LV_COORD_MAX）条件下缓存并在样式/尺寸变化时一并失效重算；否则保留原有 lv_text_get_size 调用，仅在有可靠失效机制时才使用缓存值。",
+          "group": "g0",
+          "source": "llm",
+          "anchor_status": "hunk",
+          "anchored_line": 222
+        }
+      ]
+    },
+    {
+      "url": "https://github.com/valkey-io/valkey/pull/2141",
+      "lang": "C",
+      "stats": {
+        "expected_notes": 1,
+        "generated_notes": 0,
+        "line_match_count": 0,
+        "semantic_match_count": 0,
+        "line_match_rate": 0.0,
+        "semantic_match_rate": 0.0,
+        "line_recall_rate": 0.0,
+        "semantic_recall_rate": 0.0
+      },
+      "elapsed_s": 39.9,
+      "findings": []
+    },
+    {
+      "url": "https://github.com/libsdl-org/SDL/pull/12964",
+      "lang": "C",
+      "stats": {
+        "expected_notes": 7,
+        "generated_notes": 4,
+        "line_match_count": 2,
+        "semantic_match_count": 0,
+        "line_match_rate": 0.5,
+        "semantic_match_rate": 0.0,
+        "line_recall_rate": 0.286,
+        "semantic_recall_rate": 0.0
+      },
+      "elapsed_s": 102.3,
+      "findings": [
+        {
+          "file": "src/joystick/hidapi/SDL_hidapi_8bitdo.c",
+          "line": 120,
+          "existing_code": "static int ReadFeatureReport(SDL_hid_device *dev, Uint8 report_id, Uint8 *report, size_t length)",
+          "level": "MEDIUM",
+          "category": "api-misuse",
+          "type_detail": "hid_get_feature_report return semantics",
+          "confidence": 0.6,
+          "description": "ReadFeatureReport passes `length` (sizeof(data) == USB_PACKET_LENGTH) as the buffer length to SDL_hid_get_feature_report and then only tests `size > 0`. SDL_hid_get_feature_report semantics: the caller must store the desired report id in report[0] (done), but the returned value on some platforms is the report length excluding the report ID byte, and some backends return 0 or a negative error when the report is shorter than the requested length. Because the call requests the full 64-byte packet while report 0x06 is expected to be much shorter, the probe can spuriously fail (returning <0) and silently leave sensors/rumble disabled — the feature report is also never used to actually enable the SDL report-id mode, so 'ENABLE_SDL_REPORTID' is only used as a detection probe. The return-value contract should be handled explicitly (accept size >= 0 with data[0] check, or use the documented sizeof form).",
+          "suggestion": "Handle the documented return contract: treat `size <= 0` as failure but validate data[0] instead of relying on size>0, and consider requesting the exact expected report length rather than the whole USB_PACKET_LENGTH buffer.",
+          "group": "g0",
+          "source": "llm",
+          "anchor_status": "hunk",
+          "anchored_line": 120
+        },
+        {
+          "file": "src/joystick/hidapi/SDL_hidapi_8bitdo.c",
+          "line": 153,
+          "existing_code": "        Uint8 data[USB_PACKET_LENGTH];\n        int size = ReadFeatureReport(device->dev, SDL_8BITDO_FEATURE_REPORTID_ENABLE_SDL_REPORTID, data, sizeof(data));",
+          "level": "HIGH",
+          "category": "correctness",
+          "type_detail": "feature report used as capability probe only",
+          "confidence": 0.75,
+          "description": "The new branch probes feature report 0x06 (SDL_8BITDO_FEATURE_REPORTID_ENABLE_SDL_REPORTID = \"ENABLE SDL REPORTID\") but never parses or validates the returned payload — any non-negative size (including 0 on some platforms, or a report of different report-id/length) is treated as success and unconditionally enables sensors/rumble/powerstate. Per the historical finding on this same file, on failure these devices inherit sensors_supported=false; here the inverse risk exists: a device that does not actually support the SDL report ID (or an unrelated report returned for id 0x06) will be advertised as sensor/rumble capable, after which HIDAPI_Driver8BitDo_SetJoystickSensorsEnabled succeeds but no sensor data ever arrives, and rumble packets may be rejected. The report id stored in data[0] and the returned report_id should be checked (data[0] == SDL_8BITDO_FEATURE_REPORTID_ENABLE_SDL_REPORTID) before enabling capabilities.",
+          "suggestion": "Validate the returned report (size > 1, data[0] == SDL_8BITDO_FEATURE_REPORTID_ENABLE_SDL_REPORTID, and the expected enable/echo byte value) before setting sensors_supported/rumble_supported/powerstate_supported; otherwise fall back to SDL_Unsupported-style behavior.",
+          "group": "g0",
+          "source": "llm",
+          "anchor_status": "hunk",
+          "anchored_line": 153
+        },
+        {
+          "file": "src/joystick/hidapi/SDL_hidapi_8bitdo.c",
+          "line": 385,
+          "existing_code": "    if (ctx->sensors_enabled) {\n        Uint64 sensor_timestamp;\n        float values[3];\n        ABITDO_SENSORS *sensors = (ABITDO_SENSORS *)&data[15];",
+          "level": "MEDIUM",
+          "category": "correctness",
+          "type_detail": "unvalidated size before fixed offset dereference",
+          "confidence": 0.5,
+          "description": "HandleStatePacket now accepts three report IDs but the sensor block still unconditionally reads a fixed struct at &data[15] without checking `size` covers that offset. The Ultimate2 path only enabled sensors after verifying a 34-byte report, whereas the new SN30 Pro/SF30 Pro/Pro 2 path enables sensors based solely on the feature-report probe, so a short report (e.g. the 0x01/0x03 variants or a truncated packet) reaching this code with sensors_enabled would read past the received data. Since `data` is a 64-byte stack buffer this is not an out-of-buffer read of uninitialized stack in UpdateDevice, but it does parse garbage/zeroed bytes as IMU data and can emit spurious sensor values.",
+          "suggestion": "Guard the sensor parsing with a size check (e.g. `size >= 15 + sizeof(ABITDO_SENSORS)`) and/or only enable sensors when the corresponding report length has been observed.",
+          "group": "g0",
+          "source": "llm",
+          "anchor_status": "fulltext",
+          "anchored_line": 385
+        },
+        {
+          "file": "src/joystick/usb_ids.h",
+          "line": 66,
+          "existing_code": "#define USB_PRODUCT_8BITDO_PRO_2                          0x6003    // mode switch to D ",
+          "level": "LOW",
+          "category": "correctness",
+          "type_detail": "shared product id / connection-mode ambiguity",
+          "confidence": 0.4,
+          "description": "The new product IDs mix wired and Bluetooth modes in one flat namespace: SN30_PRO 0x6001 / SN30_PRO_BT 0x6101, PRO_2 0x6003 / PRO_2_BT 0x6006, and the comments merely say 'mode switch to D', which gives no evidence that 0x6003 covers the BT variant. Moreover the 8BitDo driver now keys capability probing on product_id only, so if a device reports the same product ID over USB and Bluetooth while using different report IDs (as already seen with 0x01 BT vs 0x04 wired), the feature-report probe result established at InitDevice time may not match the reports that later arrive, and HandleStatePacket's current single cached last_state is shared across all accepted report IDs.",
+          "suggestion": "Document/verify each product ID against both USB and Bluetooth connection modes, and key capability probing on the actual connection type (or re-validate report IDs at packet-handling time) rather than assuming a single product ID implies one report format.",
+          "group": "g0",
+          "source": "llm",
+          "anchor_status": "hunk",
+          "anchored_line": 66
+        }
+      ]
+    },
+    {
+      "url": "https://github.com/valkey-io/valkey/pull/1889",
+      "lang": "C",
+      "stats": {
+        "expected_notes": 2,
+        "generated_notes": 1,
+        "line_match_count": 0,
+        "semantic_match_count": 0,
+        "line_match_rate": 0.0,
+        "semantic_match_rate": 0.0,
+        "line_recall_rate": 0.0,
+        "semantic_recall_rate": 0.0
+      },
+      "elapsed_s": 109.9,
+      "findings": [
+        {
+          "file": "tests/integration/logging.tcl",
+          "line": 130,
+          "existing_code": "            wait_for_log_messages 0 {\"*Query buffer: *redacted*\"} 0 10 1000",
+          "level": "MEDIUM",
+          "category": "test-gap",
+          "type_detail": "no negative assertion for redacted case",
+          "confidence": 0.7,
+          "description": "The 'hide-user-data-from-log is on' case only asserts that the log contains '*Query buffer: *redacted*'; there is no negative assertion that the raw user payload ('$blabla' or 'SET') does NOT appear in the log. A regression where the redaction is bypassed but the 'Query buffer: *redacted*' string is still emitted for another path (or a different query-buffer dump site that is not gated by the flag, e.g. other log sites dumping querybuf) would pass this test silently. This matches the same gap flagged in past reviews of this file.",
+          "suggestion": "Add an explicit negative assertion, e.g. read the whole log file after the crash and assert_false that it contains the raw payload (\"\\$blabla\" / \"SET\\r\\n\\$1\"), not just matching the redacted marker.",
+          "group": "g0",
+          "source": "llm",
+          "anchor_status": "hunk",
+          "anchored_line": 130
+        }
+      ]
+    },
+    {
+      "url": "https://github.com/dotnet/aspnetcore/pull/62936",
+      "lang": "C#",
+      "stats": {
+        "expected_notes": 5,
+        "generated_notes": 2,
+        "line_match_count": 2,
+        "semantic_match_count": 0,
+        "line_match_rate": 1.0,
+        "semantic_match_rate": 0.0,
+        "line_recall_rate": 0.4,
+        "semantic_recall_rate": 0.0
+      },
+      "elapsed_s": 46.5,
+      "findings": [
+        {
+          "file": "src/SignalR/server/StackExchangeRedis/test/Docker.cs",
+          "line": 113,
+          "existing_code": "            // use static name 'redisTestContainer' so if the container doesn't get removed we don't keep adding more",
+          "level": "LOW",
+          "category": "other",
+          "type_detail": "stale comment after rename (container name now redisTestContainer74)",
+          "confidence": 0.5,
+          "description": "The container name was changed to `redisTestContainer74` (line 20) but the comment on line 113 still refers to the old name 'redisTestContainer'. The comment's rationale (using a static name to avoid accumulating leftover containers) is now misleading: a reader debugging leftover containers will look for the wrong name. Note this is a recurring regression — the same class of stale-name comment was reported previously on this file. The adjacent comment 'use redis base docker image' is also now inaccurate since a pinned private-registry image is used.",
+          "suggestion": "Update the comment to reference `redisTestContainer74` (and correct the 'redis base docker image' wording) or interpolate the actual constant so it cannot drift again.",
+          "group": "g0",
+          "source": "llm",
+          "anchor_status": "fulltext",
+          "anchored_line": 113
+        },
+        {
+          "file": "src/SignalR/server/StackExchangeRedis/test/Docker.cs",
+          "line": 116,
+          "existing_code": "RunProcessAndThrowIfFailed(_path, $\"run --rm -p 6379:6379 --name {_dockerContainerName} -d {_redisImageName}\", \"redis\", logger, TimeSpan.FromMinutes(1));",
+          "level": "MEDIUM",
+          "category": "correctness",
+          "type_detail": "inconsistent image pin / partial migration",
+          "confidence": 0.5,
+          "description": "Only the main Redis container was migrated to the pinned private-registry image `_redisImageName` (redis:7.4). The monitor sidecar at line 138 still launches the bare, unpinned image `redis` (`--rm redis redis-cli ...`). This defeats the purpose of the pin: the sidecar's redis-cli (and the network alias target the container is linked to) may resolve to a different/unavailable tag than the 7.4 server actually running, and in a mirrored/offline environment where the bare `redis` tag is not present the monitor container fails to start (Start throws when the monitor process cannot be created / MONITOR is never issued). The pin should be applied consistently to both containers.",
+          "suggestion": "Use `{_redisImageName}` for the monitor container as well (or introduce a dedicated redis-cli image variable), so both the server and the monitor sidecar come from the same pinned image.",
+          "group": "g0",
+          "source": "llm",
+          "anchor_status": "hunk",
+          "anchored_line": 116
+        }
+      ]
+    },
+    {
+      "url": "https://github.com/dotnet/aspnetcore/pull/62734",
+      "lang": "C#",
+      "stats": {
+        "expected_notes": 4,
+        "generated_notes": 3,
+        "line_match_count": 1,
+        "semantic_match_count": 0,
+        "line_match_rate": 0.333,
+        "semantic_match_rate": 0.0,
+        "line_recall_rate": 0.25,
+        "semantic_recall_rate": 0.0
+      },
+      "elapsed_s": 63.6,
+      "findings": [
+        {
+          "file": "src/Identity/Extensions.Core/src/PasswordHasher.cs",
+          "line": 267,
+          "existing_code": "            byte[] salt = hashedPassword.AsSpan(13, saltLength).ToArray();",
+          "level": "HIGH",
+          "category": "correctness",
+          "type_detail": "behavioral change: silent truncation vs. length validation",
+          "confidence": 0.7,
+          "description": "The rewrite changes the semantics of malformed-payload handling. In the old code, `Buffer.BlockCopy(hashedPassword, 13, salt, 0, salt.Length)` throws ArgumentException when `saltLength` exceeds the remaining buffer, so the payload is rejected. `MemoryExtensions.AsSpan(byte[], int, int)` also validates the range (it throws ArgumentOutOfRangeException, not silent truncation), so a truly oversized salt is still rejected — but this is a **different exception type** and, critically, the `saltLength`-derived slice is now computed with `AsSpan` semantics rather than `Array` allocation semantics. The net effect is that the only remaining guard for the malformed `saltLength > hashedPassword.Length - 13` case is the catch-all at line 288; if a future refactor narrows that catch (or if the caller expects a specific exception), the malformed path silently degrades. The intended fix is an explicit bounds check before slicing, e.g. `if (saltLength < 128/8 || saltLength > hashedPassword.Length - 13) return false;`, so rejection no longer depends on an exception being swallowed by a bare `catch`.",
+          "suggestion": "Add an explicit upper-bound check on saltLength (`saltLength > hashedPassword.Length - 13`) and an explicit `saltLength < 128/8` check before slicing, so malformed payloads are rejected by normal control flow instead of relying on the catch-all; alternatively use `hashedPassword.AsSpan(13, ...)` after clamping/validating.",
+          "group": "g0",
+          "source": "llm",
+          "anchor_status": "hunk",
+          "anchored_line": 267
+        },
+        {
+          "file": "src/Identity/Extensions.Core/src/PasswordHasher.cs",
+          "line": 288,
+          "existing_code": "        catch\n        {\n            // This should never occur except in the case of a malformed payload, where\n            // we might go off the end of the array. Regardless, a malformed payload\n            // implies verification failed.\n            return false;\n        }",
+          "level": "MEDIUM",
+          "category": "error-handling",
+          "type_detail": "catch-all swallows OutOfMemoryException / fatal exceptions",
+          "confidence": 0.6,
+          "description": "The bare `catch` around the whole V3 verification body still swallows every exception type, including `OutOfMemoryException` and other fatal failures, converting them to `PasswordVerificationResult.Failed`. With the new `AsSpan(13, saltLength).ToArray()` path a malformed `saltLength` no longer forces a large allocation first (the span check fails fast), so the previously observed amplification is reduced — but the catch-all remains: any genuine fault (OOM under memory pressure, `StackOverflow`-adjacent runtime faults) is reported to callers as an ordinary wrong-password result rather than surfacing. Consider narrowing to the exception types actually expected from malformed input (`ArgumentException`/`ArgumentOutOfRangeException`/`FormatException`/`CryptographicException`) so fatal errors propagate.",
+          "suggestion": "Replace the bare `catch` with `catch (Exception ex) when (ex is ArgumentException or ArgumentOutOfRangeException or FormatException or CryptographicException)` so unexpected/fatal failures (e.g. OutOfMemoryException) are not silently converted into a failed password verification.",
+          "group": "g0",
+          "source": "llm",
+          "anchor_status": "fulltext",
+          "anchored_line": 288
+        },
+        {
+          "file": "src/Identity/test/Identity.Test/PasswordHasherTest.cs",
+          "line": 116,
+          "existing_code": "    [InlineData(\"AQAAAAEAACcQf////4r8+J3NDEnMWKlHbhJQ6N5oooZ7hUi3cr/qAjd7Lc1Sv6GhorP7Ly0AzCv9PAmKww==\")] // salt length is Int32.MaxValue",
+          "level": "MEDIUM",
+          "category": "test-gap",
+          "type_detail": "mislabeled test data / no discriminator between paths",
+          "confidence": 0.4,
+          "description": "Several of the new InlineData comments do not match the actual encoded header. This base64 payload decodes to a V3 header whose declared salt length is 0x00000008 (8 bytes), not Int32.MaxValue as the comment claims; the 8-byte salt length means this case is rejected by the pre-existing `saltLength < 128 / 8` guard at line 263 and never reaches the new `AsSpan(13, saltLength)` slice. Likewise the third added case (\"salt length (8 bytes) less than minimum allowed\") exercises the same pre-existing guard. As a result the test only asserts `PasswordVerificationResult.Failed` and provides no coverage that distinguishes the new slicing path from the old one, so a regression in the slicing logic (e.g. silent truncation or off-by-one in the subkey offset) would still pass.",
+          "suggestion": "Fix/verify the inline base64 payloads so the declared salt length matches the comments (use a value > hashedPassword.Length - 13 to actually exercise the AsSpan bounds path), and add a case with a truncated-but-decodable payload to assert the rejection is driven by an explicit bounds check rather than the catch-all.",
+          "group": "g0",
+          "source": "llm",
+          "anchor_status": "hunk",
+          "anchored_line": 116
+        }
+      ]
+    },
+    {
+      "url": "https://github.com/microsoft/semantic-kernel/pull/11361",
+      "lang": "C#",
+      "stats": {
+        "expected_notes": 3,
+        "generated_notes": 2,
+        "line_match_count": 1,
+        "semantic_match_count": 0,
+        "line_match_rate": 0.5,
+        "semantic_match_rate": 0.0,
+        "line_recall_rate": 0.333,
+        "semantic_recall_rate": 0.0
+      },
+      "elapsed_s": 64.0,
+      "findings": [
+        {
+          "file": "dotnet/samples/Demos/ModelContextProtocolPlugin/Program.cs",
+          "line": 81,
+          "existing_code": "    Arguments = new KernelArguments(new PromptExecutionSettings() { FunctionChoiceBehavior = FunctionChoiceBehavior.Auto() }),",
+          "level": "MEDIUM",
+          "category": "correctness",
+          "type_detail": "inconsistent FunctionChoiceBehavior config / missing RetainArgumentTypes",
+          "confidence": 0.72,
+          "description": "The agent's execution settings use a bare `FunctionChoiceBehavior.Auto()`, whereas the MCP invocation earlier in the same file (line 67) explicitly enables `RetainArgumentTypes = true`. The MCP GitHub server tool functions expose strongly-typed parameter schemas; without `RetainArgumentTypes`, the automatically-invoked functions receive arguments in the non-retaining `object`/`KernelArguments` shape, which the MCP tool signatures cannot bind correctly, so the agent's automatic function calling can fail or be passed malformed argument types. This is a copy-paste regression of the pattern previously recorded for line 81 in this repository.",
+          "suggestion": "Use the same settings as the successful MCP call above, e.g. `FunctionChoiceBehavior.Auto(options: new() { RetainArgumentTypes = true })`, so the agent's automatic function calling passes correctly typed arguments to the MCP-backed kernel functions.",
+          "group": "g0",
+          "source": "llm",
+          "anchor_status": "hunk",
+          "anchored_line": 81
+        },
+        {
+          "file": "dotnet/samples/Demos/ModelContextProtocolPlugin/Program.cs",
+          "line": 85,
+          "existing_code": "ChatMessageContent response = await agent.InvokeAsync(\"Summarize the last four commits to the microsoft/semantic-kernel repository?\").FirstAsync();",
+          "level": "HIGH",
+          "category": "resource-leak",
+          "type_detail": "early termination of lazy IAsyncEnumerable",
+          "confidence": 0.82,
+          "description": "`ChatCompletionAgent.InvokeAsync` returns a lazily materialized `IAsyncEnumerable<ChatMessageContent>`. Applying System.Linq's `FirstAsync()` requests only the first element, so the async iterator is cancelled/disposed as soon as the first message arrives. If the agent ever yields more than one message (e.g. multi-step auto function-calling where intermediate tool-call messages are surfaced), the remaining messages are never produced and the underlying iterator/response resources are released early via cancellation instead of being drained — the agent's turn is effectively truncated without any error being reported. This reproduces the resource-leak pattern previously recorded against this exact statement in this repository.",
+          "suggestion": "Drain the full async stream instead of early-terminating it, e.g. collect responses with `await foreach` (`await foreach (ChatMessageContent response in agent.InvokeAsync(prompt)) { ... }`) or materialize with `ToListAsync()`, then consume the last/final message. Avoid Linq `FirstAsync()` on the agent invocation stream.",
+          "group": "g0",
+          "source": "llm",
+          "anchor_status": "hunk",
+          "anchored_line": 85
+        }
+      ]
+    },
+    {
+      "url": "https://github.com/PowerShell/PowerShell/pull/24910",
+      "lang": "C#",
+      "stats": {
+        "expected_notes": 5,
+        "generated_notes": 3,
+        "line_match_count": 2,
+        "semantic_match_count": 0,
+        "line_match_rate": 0.667,
+        "semantic_match_rate": 0.0,
+        "line_recall_rate": 0.4,
+        "semantic_recall_rate": 0.0
+      },
+      "elapsed_s": 66.3,
+      "findings": [
+        {
+          "file": "src/System.Management.Automation/engine/CommandCompletion/CompletionCompleters.cs",
+          "line": 477,
+          "existing_code": "                HashSet<PSModuleInfo> nestedModulesToFilterOut = null;",
+          "level": "LOW",
+          "category": "test-gap",
+          "type_detail": "missing regression tests for new filter",
+          "confidence": 0.6,
+          "description": "No test accompanies this change. Both new behaviours are behavioural changes to tab completion output and are easy to regress: (1) the middle-of-name match must now be excluded ('gmo power' must not yield Microsoft.PowerShell.Utility), and (2) nested modules of the engine session-state module (PSReadLine's nested modules during interactive completion) must be filtered out while the global-session-state path (currentModule == null, e.g. TabExpansion2 invoked from the command line) must remain unfiltered. Neither assertion exists in the diff, and the second is precisely the tricky path documented in the new comments.",
+          "suggestion": "Add Pester tests covering: middle-match exclusion for a dotted module name; nested-module filtering when EngineSessionState.Module has nested modules with loadedModulesOnly=true; and the unchanged global-session-state path (Module == null) where results must not be filtered.",
+          "group": "g0",
+          "source": "llm",
+          "anchor_status": "hunk",
+          "anchored_line": 477
+        },
+        {
+          "file": "src/System.Management.Automation/engine/CommandCompletion/CompletionCompleters.cs",
+          "line": 479,
+          "existing_code": "                if (loadedModulesOnly && currentModule?.NestedModules.Count > 0)",
+          "level": "MEDIUM",
+          "category": "correctness",
+          "type_detail": "null/empty-collection boundary",
+          "confidence": 0.5,
+          "description": "`PSModuleInfo.NestedModules` may be null for some module origin (modules created via New-Module/script-block modules or module info objects that have never had their nested modules populated), so `currentModule?.NestedModules.Count > 0` can throw NullReferenceException inside a completion code path — where an exception propagates as a completion failure rather than a graceful empty result. The null-conditional operator only protects `currentModule`, not the `NestedModules` property it dereferences.",
+          "suggestion": "Guard the collection too, e.g. `if (loadedModulesOnly && currentModule?.NestedModules is { Count: > 0 } nested)` and build the HashSet from `nested`, so a null NestedModules collection degrades to 'no filtering' instead of throwing.",
+          "group": "g0",
+          "source": "llm",
+          "anchor_status": "hunk",
+          "anchored_line": 479
+        },
+        {
+          "file": "src/System.Management.Automation/engine/CommandCompletion/CompletionCompleters.cs",
+          "line": 499,
+          "existing_code": "                    if (nestedModulesToFilterOut is not null\n                        && nestedModulesToFilterOut.Contains(moduleInfo))",
+          "level": "MEDIUM",
+          "category": "correctness",
+          "type_detail": "reference-identity / over-eager filtering",
+          "confidence": 0.45,
+          "description": "The new filter unconditionally drops any module returned by Get-Module that is present in currentModule.NestedModules, regardless of what the user actually typed. `HashSet<PSModuleInfo>` uses default equality (reference identity for PSModuleInfo), so the filter depends on `moduleInfo` from the Get-Module output being the very same instance stored in `currentModule.NestedModules`. This is an implicit assumption on the object graph rather than a name-based comparison, and it also means that when the user explicitly types the nested module's own name (e.g. completing a name that only resolves to a nested module of the current engine module), the legitimate result is silently suppressed. Suggest filtering by module name (e.g. `HashSet<string>` with OrdinalIgnoreCase) and only when the completion text does not itself exactly match that nested module name.",
+          "suggestion": "Compare by name instead of reference identity (HashSet<string> with StringComparer.OrdinalIgnoreCase built from currentModule.NestedModules.Select(m => m.Name)), and skip filtering if the completion text exactly matches the nested module name so explicit requests still resolve.",
+          "group": "g0",
+          "source": "llm",
+          "anchor_status": "hunk",
+          "anchored_line": 499
+        }
+      ]
+    },
+    {
+      "url": "https://github.com/electron/electron/pull/46660",
+      "lang": "C++",
+      "stats": {
+        "expected_notes": 2,
+        "generated_notes": 0,
+        "line_match_count": 0,
+        "semantic_match_count": 0,
+        "line_match_rate": 0.0,
+        "semantic_match_rate": 0.0,
+        "line_recall_rate": 0.0,
+        "semantic_recall_rate": 0.0
+      },
+      "elapsed_s": 48.1,
+      "findings": []
+    },
+    {
+      "url": "https://github.com/opencv/opencv/pull/26815",
+      "lang": "C++",
+      "stats": {
+        "expected_notes": 4,
+        "generated_notes": 0,
+        "line_match_count": 0,
+        "semantic_match_count": 0,
+        "line_match_rate": 0.0,
+        "semantic_match_rate": 0.0,
+        "line_recall_rate": 0.0,
+        "semantic_recall_rate": 0.0
+      },
+      "elapsed_s": 149.5,
+      "findings": []
+    },
+    {
+      "url": "https://github.com/ClickHouse/ClickHouse/pull/85266",
+      "lang": "C++",
+      "stats": {
+        "expected_notes": 5,
+        "generated_notes": 1,
+        "line_match_count": 0,
+        "semantic_match_count": 0,
+        "line_match_rate": 0.0,
+        "semantic_match_rate": 0.0,
+        "line_recall_rate": 0.0,
+        "semantic_recall_rate": 0.0
+      },
+      "elapsed_s": 186.0,
+      "findings": [
+        {
+          "id": "sec_07957bb3",
+          "agent": "security_agent",
+          "file": "src/Storages/MergeTree/MergeTreeDataMergerMutator.cpp",
+          "line": 6,
+          "level": "INFO",
+          "type": "security_check",
+          "confidence": 0.8,
+          "description": "Security scan placeholder for src/Storages/MergeTree/MergeTreeDataMergerMutator.cpp",
+          "suggestion": "Real security rules will be implemented in later PRs.",
+          "symbol": null,
+          "code_snippet": null,
+          "category": "security"
+        }
+      ]
+    },
+    {
+      "url": "https://github.com/bitcoin/bitcoin/pull/31886",
+      "lang": "C++",
+      "stats": {
+        "expected_notes": 4,
+        "generated_notes": 0,
+        "line_match_count": 0,
+        "semantic_match_count": 0,
+        "line_match_rate": 0.0,
+        "semantic_match_rate": 0.0,
+        "line_recall_rate": 0.0,
+        "semantic_recall_rate": 0.0
+      },
+      "elapsed_s": 113.7,
+      "findings": []
+    },
+    {
+      "url": "https://github.com/ollama/ollama/pull/8938",
+      "lang": "Go",
+      "stats": {
+        "expected_notes": 2,
+        "generated_notes": 6,
+        "line_match_count": 1,
+        "semantic_match_count": 0,
+        "line_match_rate": 0.167,
+        "semantic_match_rate": 0.0,
+        "line_recall_rate": 0.5,
+        "semantic_recall_rate": 0.0
+      },
+      "elapsed_s": 86.7,
+      "findings": [
+        {
+          "id": "sec_8a64382e",
+          "agent": "security_agent",
+          "file": "api/types.go",
+          "line": 13,
+          "level": "INFO",
+          "type": "security_check",
+          "confidence": 0.8,
+          "description": "Security scan placeholder for api/types.go",
+          "suggestion": "Real security rules will be implemented in later PRs.",
+          "symbol": null,
+          "code_snippet": null,
+          "category": "security"
+        },
+        {
+          "id": "sec_ed0c895a",
+          "agent": "security_agent",
+          "file": "envconfig/config.go",
+          "line": 170,
+          "level": "INFO",
+          "type": "security_check",
+          "confidence": 0.8,
+          "description": "Security scan placeholder for envconfig/config.go",
+          "suggestion": "Real security rules will be implemented in later PRs.",
+          "symbol": null,
+          "code_snippet": null,
+          "category": "security"
+        },
+        {
+          "id": "test_0b156eb4",
+          "agent": "test_agent",
+          "file": "envconfig/config_test.go",
+          "line": 1,
+          "level": "INFO",
+          "type": "test_file_changed",
+          "confidence": 0.9,
+          "description": "Test file modified: envconfig/config_test.go",
+          "suggestion": "Ensure test coverage is maintained.",
+          "symbol": null,
+          "code_snippet": null,
+          "category": "test-gap"
+        },
+        {
+          "id": "sec_7dcbaffa",
+          "agent": "security_agent",
+          "file": "envconfig/config_test.go",
+          "line": 275,
+          "level": "INFO",
+          "type": "security_check",
+          "confidence": 0.8,
+          "description": "Security scan placeholder for envconfig/config_test.go",
+          "suggestion": "Real security rules will be implemented in later PRs.",
+          "symbol": null,
+          "code_snippet": null,
+          "category": "security"
+        },
+        {
+          "id": "test_99c4b37b",
+          "agent": "test_agent",
+          "file": "llm/memory_test.go",
+          "line": 1,
+          "level": "INFO",
+          "type": "test_file_changed",
+          "confidence": 0.9,
+          "description": "Test file modified: llm/memory_test.go",
+          "suggestion": "Ensure test coverage is maintained.",
+          "symbol": null,
+          "code_snippet": null,
+          "category": "test-gap"
+        },
+        {
+          "id": "sec_88e4f514",
+          "agent": "security_agent",
+          "file": "llm/memory_test.go",
+          "line": 20,
+          "level": "INFO",
+          "type": "security_check",
+          "confidence": 0.8,
+          "description": "Security scan placeholder for llm/memory_test.go",
+          "suggestion": "Real security rules will be implemented in later PRs.",
+          "symbol": null,
+          "code_snippet": null,
+          "category": "security"
+        }
+      ]
+    },
+    {
+      "url": "https://github.com/microsoft/typescript-go/pull/1000",
+      "lang": "Go",
+      "stats": {
+        "expected_notes": 1,
+        "generated_notes": 1,
+        "line_match_count": 0,
+        "semantic_match_count": 0,
+        "line_match_rate": 0.0,
+        "semantic_match_rate": 0.0,
+        "line_recall_rate": 0.0,
+        "semantic_recall_rate": 0.0
+      },
+      "elapsed_s": 59.9,
+      "findings": [
+        {
+          "file": "internal/ls/diagnostics.go",
+          "line": 29,
+          "existing_code": "\t\t\tFullDocumentDiagnosticReport: lsproto.FullDocumentDiagnosticReport{\n\t\t\t\tItems: toLSPDiagnostics(l.converters, diagnostics...),",
+          "level": "MEDIUM",
+          "category": "correctness",
+          "type_detail": "mandatory union discriminant removed",
+          "confidence": 0.45,
+          "description": "旧代码在 FullDocumentDiagnosticReport 中显式设置了 Kind: lsproto.StringLiteralFull{}（LSP 的 DocumentDiagnosticReport 是 'kind' 判别联合，kind:\"full\" 是必填字段），新的代码在构造 FullDocumentDiagnosticReport 字面量时不再设置 Kind。若该字段在 lsproto 结构体中没有被自动填充（例如通过 UnmarshalJSON/MarshalJSON 的 custom marshaler 注入），序列化结果会缺失 kind 字段，客户端将无法识别报告类型。",
+          "suggestion": "确认 lsproto.FullDocumentDiagnosticReport 的 Kind 字段是否需要由调用方填充；如需，请恢复 Kind: lsproto.StringLiteralFull{}（或让结构体自带默认序列化值）并补充相应测试。",
+          "group": "g0",
+          "source": "llm",
+          "anchor_status": "fulltext",
+          "anchored_line": 29
+        }
+      ]
+    },
+    {
+      "url": "https://github.com/ollama/ollama/pull/12185",
+      "lang": "Go",
+      "stats": {
+        "expected_notes": 12,
+        "generated_notes": 11,
+        "line_match_count": 0,
+        "semantic_match_count": 0,
+        "line_match_rate": 0.0,
+        "semantic_match_rate": 0.0,
+        "line_recall_rate": 0.0,
+        "semantic_recall_rate": 0.0
+      },
+      "elapsed_s": 534.6,
+      "findings": [
+        {
+          "file": "runner/ollamarunner/runner.go",
+          "line": 552,
+          "existing_code": "\t\t\tseq.iBatch = len(batch.Outputs)",
+          "level": "HIGH",
+          "category": "correctness",
+          "type_detail": "stale index after Outputs no longer rewritten/appended in runner",
+          "confidence": 0.6,
+          "description": "Batch.Outputs was changed from a per-call tensor (ctx.Input().FromIntSlice(...)) into a plain []int32 (model/input/input.go now declares `Outputs []int32`), yet runner code still tracks its length as a running cursor into the returned logits. Here seq.iBatch is set to len(batch.Outputs) and, at line 554, batch.Outputs is appended to. Because the runner no longer resets the slice per computeBatch (no `batch.Outputs = batch.Outputs[:0]` visible in this file; batch.Outputs is only allocated once at line 1049-1051 for s.parallel entries and never truncated), len(batch.Outputs) keeps growing across decode steps. seq.iBatch then points past the end of the per-batch logits buffer (line 706 computes vocabSize := len(outputs) / len(activeBatch.batch.Outputs), whose value is itself corrupted by the growing denominator), so the runner reads the wrong row of logits or goes out of range.",
+          "suggestion": "Ensure batch.Outputs is reset to a zero-length slice at the start of every batch construction (e.g. batch.Outputs = batch.Outputs[:0] alongside batch.Inputs/Positions/Sequences) and derive the logits offset from a per-batch counter instead of the cumulative len(batch.Outputs).",
+          "group": "g9",
+          "source": "llm",
+          "anchor_status": "fulltext",
+          "anchored_line": 552
+        },
+        {
+          "file": "runner/ollamarunner/runner.go",
+          "line": 556,
+          "existing_code": "\t\tbatchOutputs = append(batchOutputs, int32(len(batchInputs)-1))",
+          "level": "MEDIUM",
+          "category": "correctness",
+          "type_detail": "index mapping coupling between batchOutputs order and iBatch row offset",
+          "confidence": 0.4,
+          "description": "batchOutputs 现在作为 ml.Tensor 通过 nextBatch.ctx.Input().FromIntSlice(batchOutputs, len(batchOutputs)) 传给模型，但 seq.iBatch 仍以 batchOutputs 的插入位置（下标）记录并在 computeBatch 中用作 outputs 的行偏移（outputs[iBatches[i]*vocabSize : ...]）。原先 Outputs 的索引与写入顺序一一对应仅是巧合，因为旧实现同样以位置映射；但类型改为张量后，任何模型侧对 Outputs 的顺序重排/去重（例如按 index 排序或使用 unique）都会使 iBatch 行偏移错位，导致采样到其它序列的 logits。",
+          "suggestion": "将 iBatch 的语义改为“在 batch.Outputs 张量中的行号”并显式保证顺序稳定，或在模型实现中约定不得重排 Outputs；最好在 runner 侧保存 iBatch -> row 的映射并在采样时按该映射取值，附单元测试覆盖多序列 + 多输出场景。",
+          "group": "g0",
+          "source": "llm",
+          "anchor_status": "fulltext",
+          "anchored_line": 556
+        },
+        {
+          "file": "runner/ollamarunner/runner.go",
+          "line": 709,
+          "existing_code": "\t\tvocabSize := len(outputs) / activeBatch.batch.Outputs.Dim(0)",
+          "level": "HIGH",
+          "category": "error-handling",
+          "type_detail": "division by zero / unbounded slice from unvalidated tensor dim",
+          "confidence": 0.55,
+          "description": "vocabSize 通过 len(outputs) / activeBatch.batch.Outputs.Dim(0) 计算，缺少对 batch.Outputs 为 nil、Dim(0) == 0（除零 panic）以及 len(outputs) 与 Dim(0) 不一致（截断/越界切片）的防护。随后 outputs[iBatches[i]*vocabSize : (iBatches[i]+1)*vocabSize] 的切片边界完全依赖该除法结果，一旦模型返回的 logits 长度与 Outputs 数量不匹配就会越界 panic 而不是返回错误。",
+          "suggestion": "计算前检查 activeBatch.batch.Outputs 非 nil 且 Dim(0) > 0，并校验 len(outputs)%Dim(0) == 0，否则通过 s.hardErrCh 返回明确错误；对切片索引做边界检查。",
+          "group": "g0",
+          "source": "llm",
+          "anchor_status": "fulltext",
+          "anchored_line": 709
+        },
+        {
+          "file": "model/input/input.go",
+          "line": 57,
+          "existing_code": "\t// Outputs are the set of indicies into Inputs for which output data should\n\t// be returned.\n\tOutputs ml.Tensor",
+          "level": "MEDIUM",
+          "category": "test-gap",
+          "type_detail": "breaking interface change without tests for Outputs contract",
+          "confidence": 0.45,
+          "description": "Batch.Outputs 由 []int32 改为 ml.Tensor 属于跨 13 个模型文件的破坏性接口变更，但本 PR 未见新增/更新任何针对 Batch 结构与 Forward 输出选择的单元测试；runner 侧依赖 Outputs 行数做 logits 切分，这一契约没有任何测试保护（多序列批、embeddingOnly、单 token 批等边界均未覆盖）。",
+          "suggestion": "新增测试：1) 构造含多个序列的 Batch，断言 Forward 返回的 logits 长度 == Outputs.Dim(0) * vocabSize；2) 覆盖 Outputs 为 nil / 空张量的文本模型路径应返回错误而非 panic；3) 覆盖 embeddingOnly 与 SameBatch 展开场景的 iBatch 映射。",
+          "group": "g0",
+          "source": "llm",
+          "anchor_status": "hunk",
+          "anchored_line": 57
+        },
+        {
+          "file": "model/models/gemma2/model.go",
+          "line": 195,
+          "existing_code": "\t\t\tlastLayerOutputs = batch.Outputs",
+          "level": "CRITICAL",
+          "category": "api-misuse",
+          "type_detail": "raw []int32 assigned where ml.Tensor required",
+          "confidence": 0.9,
+          "description": "batch.Outputs is a []int32 slice of indices into Inputs (see model/input/input.go Batch.Outputs), while layer.Forward expects a ml.Tensor (as the removed code built with ctx.Input().FromIntSlice(batch.Outputs, len(batch.Outputs))). Assigning a []int32 to a ml.Tensor variable does not even compile, and the type of lastLayerOutputs is ml.Tensor, so this change breaks the build for the gemma2 model.",
+          "suggestion": "Restore the tensor conversion: lastLayerOutputs = ctx.Input().FromIntSlice(batch.Outputs, len(batch.Outputs)) (or add an equivalent helper on the batch).",
+          "group": "g1",
+          "source": "llm",
+          "anchor_status": "hunk",
+          "anchored_line": 195
+        },
+        {
+          "file": "model/models/gemma3/model_text.go",
+          "line": 194,
+          "existing_code": "\t\tvar lastLayerOutputs ml.Tensor\n\t\tif i == len(m.Layers)-1 {\n\t\t\tlastLayerOutputs = batch.Outputs\n\t\t}",
+          "level": "MEDIUM",
+          "category": "correctness",
+          "type_detail": "type/contract change of batch.Outputs",
+          "confidence": 0.4,
+          "description": "`lastLayerOutputs` is declared as `ml.Tensor` and now assigned directly from `batch.Outputs`, whereas previously `batch.Outputs` was the int32 index slice converted via `ctx.Input().FromIntSlice(batch.Outputs, ...)`. This implies `input.Batch.Outputs` changed type from `[]int32` to `ml.Tensor`, and all callers (runner/ollamarunner/runner.go etc.) must now create that tensor. If any caller still sets Outputs as a plain index slice, this is a compile error; if the tensor is allocated on a different context than the model's compute context, the last-layer output gathering will read mismatched/uninitialized data. Ensure every construction site of input.Batch.Outputs is updated consistently and uses the same ml.Context/backend as the model forward pass.",
+          "suggestion": "Audit all input.Batch{Outputs: ...} construction sites (runner/ollamarunner/runner.go, other models) to confirm they build an ml.Tensor of the correct indices on the model context; add a test that verifies last-layer output gathering picks the expected rows.",
+          "group": "g2",
+          "source": "llm",
+          "anchor_status": "fulltext",
+          "anchored_line": 194
+        },
+        {
+          "file": "model/models/gptoss/model.go",
+          "line": 43,
+          "existing_code": "\t\tvar outputs ml.Tensor\n\t\tif i == len(m.TransformerBlocks)-1 {\n\t\t\toutputs = batch.Outputs\n\t\t}",
+          "level": "HIGH",
+          "category": "api-misuse",
+          "type_detail": "type mismatch: []int32 slice assigned to ml.Tensor field",
+          "confidence": 0.85,
+          "description": "batch.Outputs is a []int32 field (see model/input/input.go:71), not an ml.Tensor. Other models in this same PR convert the slice via ctx.Input().FromIntSlice(batch.Outputs, len(batch.Outputs)) before passing it to block.Forward (e.g. model/models/llama/model.go:163, qwen3/model.go:168). Assigning the raw slice to `var outputs ml.Tensor` cannot compile and, even conceptually, skips the host->device conversion the backend expects.",
+          "suggestion": "Restore the conversion: outputs = ctx.Input().FromIntSlice(batch.Outputs, len(batch.Outputs)) (the removal of the len(batch.Outputs) > 0 guard is fine since FromIntSlice with an empty slice should be handled by the caller).",
+          "group": "g4",
+          "source": "llm",
+          "anchor_status": "fulltext",
+          "anchored_line": 43
+        },
+        {
+          "file": "model/models/llama/model.go",
+          "line": 163,
+          "existing_code": "\t\t\toutputs = batch.Outputs",
+          "level": "HIGH",
+          "category": "api-misuse",
+          "type_detail": "tensor vs slice type mismatch in ml.Tensor parameter",
+          "confidence": 0.6,
+          "description": "该改动把原本 ctx.Input().FromIntSlice(batch.Outputs, len(batch.Outputs)) 得到的 ml.Tensor 替换成了 batch.Outputs（[]int32，input.Batch 的字段，用于“返回输出的输入索引集合”）。从仓库检索可见同 PR 的其它模型（gemma3/model_text.go:164、qwen25vl/model.go:143 等尚未改动的调用点仍用 FromIntSlice）都把 batch.Outputs 转成 Tensor 再传给 layer.Forward 的 outputs 参数，说明该参数契约是 ml.Tensor；直接传 []int32 反而与其余模型不一致，且 llama 自身在 154 行仍对 batch.Positions 调用 FromIntSlice，行为不对称。若 outputs 参数类型确为 ml.Tensor 则此改动无法编译；若新接口确实接受切片，也应与其它模型统一，否则极易在多处模型实现间产生语义/类型不一致。",
+          "suggestion": "确认 layer.Forward 的 outputs 形参类型：若约定为 ml.Tensor，则恢复 ctx.Input().FromIntSlice(batch.Outputs, len(batch.Outputs))；若本次确实把接口改为 []int32，请同步修改 gemma2/gemma3/qwen2/qwen3/qwen25vl/gptoss/gemma3n 等所有调用点并更新 input.Batch 注释（第 69-71 行仍说明 Outputs 是“索引集合”），避免不同模型实现间类型与语义分裂。",
+          "group": "g5",
+          "source": "llm",
+          "anchor_status": "hunk",
+          "anchored_line": 163
+        },
+        {
+          "file": "model/models/mllama/model.go",
+          "line": 112,
+          "existing_code": "\treturn m.TextModel.Forward(ctx, batch.Inputs, positions, batch.Outputs, crossAttentionStates, nil, m.Cache.(*kvcache.WrapperCache)), nil",
+          "level": "HIGH",
+          "category": "correctness",
+          "type_detail": "device placement / memory type of batch.Outputs vs ctx.Input()",
+          "confidence": 0.45,
+          "description": "mllama 此前通过 ctx.Input().FromIntSlice(batch.Outputs, len(batch.Outputs)) 把 Outputs 从主机内存拷贝到 context 的输入缓冲区后再传给 TextModel.Forward，本次改为直接传 batch.Outputs 切片。仓库内其他模型（llama4/model.go:179、mistral3/model.go:164、qwen25vl/model.go:145）在各自 Forward 中仍保留 outputs 的显式构造，说明目标 Forward 期望的是 context 内的张量而非裸主机切片；若 batch.Outputs 已由调用方（runner）预拷贝到 context input（即全 PR 在 model/input 与 runner 侧统一改为直接使用 batch 内部张量），则该改动正确；反之会破坏 outputs 的设备放置约定。此处未能在本组范围内取证到 batch.Outputs 的类型/来源定义，故以中低置信度标记，建议确认 batch.Outputs 与 ctx.Input() 是否为同一 context 内的张量。",
+          "suggestion": "确认 input.Batch.Outputs 的字段类型与生命周期（是否已位于 ctx.Input() 的 context 中、是否为 int32/[]int32 slice）；若不是 context 内张量，应保留 ctx.Input().FromIntSlice 的转换，或在该变更的配套 commit 中一并调整。",
+          "group": "g8",
+          "source": "llm",
+          "anchor_status": "hunk",
+          "anchored_line": 112
+        },
+        {
+          "file": "model/models/qwen2/model.go",
+          "line": 114,
+          "existing_code": "\t\t\toutputs = batch.Outputs",
+          "level": "MEDIUM",
+          "category": "correctness",
+          "type_detail": "empty Outputs slice no longer means 'all rows'",
+          "confidence": 0.4,
+          "description": "Previously `ctx.Input().FromIntSlice(batch.Outputs, len(batch.Outputs))` produced a tensor whose length equalled len(batch.Outputs); now the raw []int32 slice is passed straight into layer.Forward. Any decoder attention that guards with `if outputs == nil { outputs = ctx.Input().FromIntSlice(...all...) }` or `if len(outputs) > 0` changes behaviour when the slice is empty: the new code can hand an empty-but-non-nil slice where the old code produced a nil tensor, causing the attention/output path to select zero rows instead of all rows. This is a silent behavioural change rather than a compile error, so it will only surface on first token of a request.",
+          "suggestion": "Verify all consumers of the outputs argument treat an empty (len==0) slice identically to nil, or convert with an explicit nil check when len(batch.Outputs)==0 (e.g. `if len(batch.Outputs) > 0 { outputs = batch.Outputs }`).",
+          "group": "g9",
+          "source": "llm",
+          "anchor_status": "hunk",
+          "anchored_line": 114
+        },
+        {
+          "file": "model/models/qwen3/model.go",
+          "line": 168,
+          "existing_code": "\t\t\toutputs = batch.Outputs",
+          "level": "MEDIUM",
+          "category": "api-misuse",
+          "type_detail": "type mismatch: []int32 assigned to ml.Tensor",
+          "confidence": 0.7,
+          "description": "In Forward, `outputs` is declared as `var outputs ml.Tensor`, but the new code assigns `batch.Outputs` (a []int32 slice, per runner/ollamarunner/runner.go where `batch.Outputs = make([]int32, s.parallel)` / `append(batch.Outputs, int32(...))`) instead of converting it via `ctx.Input().FromIntSlice(...)`. This is a type mismatch and should not compile; even if a different `batch` type has an Outputs field of ml.Tensor, the removal of the FromIntSlice conversion changes semantics (no I32 tensor materialized from the int32 slice) and diverges from all sibling models (qwen2/llama/mistral3/gptoss/gemma2 etc.) which still call FromIntSlice. The layer receives a slice where a tensor index is expected.",
+          "suggestion": "Revert to `outputs = ctx.Input().FromIntSlice(batch.Outputs, len(batch.Outputs))`, or if a new tensor-typed batch.Outputs field is intended, update the runner so batch.Outputs is populated as an ml.Tensor consistently across all models.",
+          "group": "g11",
+          "source": "llm",
+          "anchor_status": "hunk",
+          "anchored_line": 168
+        }
+      ]
+    },
+    {
+      "url": "https://github.com/microsoft/typescript-go/pull/1446",
+      "lang": "Go",
+      "stats": {
+        "expected_notes": 13,
+        "generated_notes": 3,
+        "line_match_count": 1,
+        "semantic_match_count": 0,
+        "line_match_rate": 0.333,
+        "semantic_match_rate": 0.0,
+        "line_recall_rate": 0.077,
+        "semantic_recall_rate": 0.0
+      },
+      "elapsed_s": 127.3,
+      "findings": [
+        {
+          "file": "internal/fourslash/_scripts/makeManual.mts",
+          "line": 17,
+          "existing_code": "    const testName = args[0];\n    const testFileName = testName;\n    const genTestFile = path.join(genDir, testFileName + \"_test.go\");",
+          "level": "LOW",
+          "category": "correctness",
+          "type_detail": "name-normalization mismatch",
+          "confidence": 0.45,
+          "description": "The CLI arg is used verbatim both as the gen file basename and as the entry written into `manualTests.txt`, while `convertFourslash.mts` excludes manual tests by comparing against a differently-normalized name. In `parseTypeScriptFiles` the exclusion key is `file.slice(0, -3)` (the raw .ts basename, dots preserved), but the generated Go test name is `filename.replace(\".ts\", \"\").replace(\".\", \"\")` (only the first remaining dot removed). For a source whose basename contains a dot (e.g. `foo.bar.ts`) the generator's test name becomes `foobar` while the manual key `foo.bar` is written to manualTests.txt and used to look up `foo.bar_test.go` — the file lookup fails and the exclusion never matches. The two scripts do not share a single normalization function, so the contract is only implicit.",
+          "suggestion": "Extract one shared helper (e.g. `toTestName(file)`) that both scripts use for the gen-file basename, the manualTests.txt entry, and the exclusion check, instead of relying on two independent string manipulations.",
+          "group": "g1",
+          "source": "llm",
+          "anchor_status": "hunk",
+          "anchored_line": 17
+        },
+        {
+          "file": "internal/fourslash/_scripts/makeManual.mts",
+          "line": 47,
+          "existing_code": "    const updatedContent = content.replace(/^\\s*t\\.Skip\\(\\)\\s*$/m, \"\");\n    fs.writeFileSync(manualFilePath, updatedContent, \"utf-8\");\n    fs.rmSync(genFilePath);",
+          "level": "MEDIUM",
+          "category": "error-handling",
+          "type_detail": "silent no-op / unverified transform",
+          "confidence": 0.6,
+          "description": "`renameAndRemoveSkip` performs the skip-removal regex replacement without verifying that any match occurred. If the generated test does not contain a standalone `t.Skip()` line (e.g. the skip is emitted inline, indented differently, or the test was never in failingTests), the replace is a silent no-op: the file is still moved to `tests/manual/`, the generated file is deleted, and the script reports success. The result is a 'manual' test that is actually still skipped (or that never needed skipping) with no error surfaced to the user — a silent correctness/debugging hazard in a code-generation tool.",
+          "suggestion": "Compare `content` against `updatedContent` and fail loudly when they are equal, e.g. `if (updatedContent === content) { console.error(\\`No t.Skip() found in ${genFilePath}; refusing to move.\\`); process.exit(1); }` before writing/deleting.",
+          "group": "g1",
+          "source": "llm",
+          "anchor_status": "hunk",
+          "anchored_line": 47
+        },
+        {
+          "file": "internal/fourslash/tests/manual/completionListInClosedFunction05_test.go",
+          "line": 24,
+          "existing_code": "\t\t\tCommitCharacters: &DefaultCommitCharacters,",
+          "level": "HIGH",
+          "category": "correctness",
+          "type_detail": "test expectation inverted to match implementation instead of upstream spec",
+          "confidence": 0.6,
+          "description": "The assertion for the default completion-item behavior was changed from `&[]string{}` (empty commit characters) to `&DefaultCommitCharacters` (the standard non-empty commit-character set). These two expectations are mutually exclusive. The cursor marker here is `var v = /*1*/`, which is a *new identifier location* (a value position, not a member/property access). In new identifier locations the completion service is expected to return an empty `commitCharacters` list — which is exactly why the original test asserted `&[]string{}`. Since this test was previously `t.Skip()`ped, the new value has no prior green baseline; flipping the expected value to the default set risks masking a real behavioral divergence from the upstream TypeScript fourslash reference by asserting whatever the current implementation happens to emit.",
+          "suggestion": "Verify against the upstream TypeScript reference test (tests/cases/fourslash/completionListInClosedFunction05.ts) what the expected commit characters actually are for this cursor position. If that test does not specify commit characters (or specifies none), keep `&[]string{}` or omit the field, and fix the implementation instead of relaxing the assertion. If the upstream test genuinely expects default commit characters, add a comment citing the reference so the expectation is traceable.",
+          "group": "g2",
+          "source": "llm",
+          "anchor_status": "hunk",
+          "anchored_line": 24
+        }
+      ]
+    },
+    {
+      "url": "https://github.com/keycloak/keycloak/pull/41672",
+      "lang": "Java",
+      "stats": {
+        "expected_notes": 1,
+        "generated_notes": 2,
+        "line_match_count": 0,
+        "semantic_match_count": 0,
+        "line_match_rate": 0.0,
+        "semantic_match_rate": 0.0,
+        "line_recall_rate": 0.0,
+        "semantic_recall_rate": 0.0
+      },
+      "elapsed_s": 76.9,
+      "findings": [
+        {
+          "file": "adapters/saml/wildfly/wildfly-subsystem/src/main/java/org/keycloak/subsystem/adapter/saml/extension/KeycloakSubsystemDefinition.java",
+          "line": 25,
+          "existing_code": "import static org.keycloak.subsystem.adapter.saml.extension.KeycloakDependencyProcessor.KEYCLOAK_JBOSS_CORE_ADAPTER;",
+          "level": "LOW",
+          "category": "other",
+          "type_detail": "coupling inversion",
+          "confidence": 0.4,
+          "description": "The constant KEYCLOAK_JBOSS_CORE_ADAPTER was moved from KeycloakSubsystemDefinition into KeycloakDependencyProcessor, and KeycloakSubsystemDefinition now statically imports it back. This reverses the previous dependency direction (KeycloakDependencyProcessor used to reference KeycloakSubsystemDefinition) and couples the subsystem resource definition to a deployment processor class, which makes the module layout harder to reason about. It compiles and is functionally equivalent, but the shared constant would more naturally live in a neutral holder rather than being imported across two unrelated extension classes.",
+          "suggestion": "Keep the shared module-name constant in a neutral location (e.g., a small constants/keys class or on KeycloakSubsystemDefinition as before) so neither class has to statically import the other.",
+          "group": "g0",
+          "source": "llm",
+          "anchor_status": "hunk",
+          "anchored_line": 25
+        },
+        {
+          "file": "adapters/saml/wildfly/wildfly-subsystem/src/main/java/org/keycloak/subsystem/adapter/saml/extension/KeycloakDependencyProcessor.java",
+          "line": 80,
+          "existing_code": "        // ModuleDependency(ModuleLoader moduleLoader, ModuleIdentifier identifier, boolean optional, boolean export, boolean importServices, boolean userSpecified)",
+          "level": "INFO",
+          "category": "other",
+          "type_detail": "stale comment",
+          "confidence": 0.6,
+          "description": "The inline comment above addCommonModules still documents the parameter as 'ModuleIdentifier identifier', but this change removed all ModuleIdentifier usage from the file and the arguments are now plain String module names. The comment is now misleading about the actual constructor contract being exercised.",
+          "suggestion": "Update the comment to describe the constructor as taking a String module name (or drop the stale signature note).",
+          "group": "g0",
+          "source": "llm",
+          "anchor_status": "fulltext",
+          "anchored_line": 80
+        }
+      ]
+    },
+    {
+      "url": "https://github.com/dbeaver/dbeaver/pull/37564",
+      "lang": "Java",
+      "stats": {
+        "expected_notes": 5,
+        "generated_notes": 2,
+        "line_match_count": 1,
+        "semantic_match_count": 0,
+        "line_match_rate": 0.5,
+        "semantic_match_rate": 0.0,
+        "line_recall_rate": 0.2,
+        "semantic_recall_rate": 0.0
+      },
+      "elapsed_s": 110.1,
+      "findings": [
+        {
+          "file": "plugins/org.jkiss.dbeaver.model.rcp/src/org/jkiss/dbeaver/model/navigator/DBNResource.java",
+          "line": 423,
+          "existing_code": "            } else if (adapter == InputStream.class && resource instanceof IFile file) {\n                try {\n                    return adapter.cast(file.getContents());\n                } catch (CoreException e) {\n                    log.error(\"Error getting file contents\", e);\n                }\n            }",
+          "level": "MEDIUM",
+          "category": "api-misuse",
+          "type_detail": "getAdapter returns a fresh stream on every call; caller owns it",
+          "confidence": 0.6,
+          "description": "getAdapter(InputStream.class) now returns a newly opened workspace file stream each time it is called. The IFilesystem / IAdapter contract normally treats getAdapter() as a cheap, side-effect-free lookup, so any generic caller that repeatedly adapts a node (e.g. checks for capabilities or re-adapts) will silently leak open streams/file handles, and no caller besides DBNPathBase.dropNodes is documented to close it. Also, the created stream is never wrapped in a BufferedInputStream.",
+          "suggestion": "Document explicitly that the returned stream is caller-owned and must be closed, and consider returning a defensive wrapper (e.g. BufferedInputStream) or renaming to a method such as openInputStream() to make the ownership/side-effect explicit.",
+          "group": "g0",
+          "source": "llm",
+          "anchor_status": "hunk",
+          "anchored_line": 423
+        },
+        {
+          "file": "plugins/org.jkiss.dbeaver.model/src/org/jkiss/dbeaver/model/navigator/fs/DBNPathBase.java",
+          "line": 293,
+          "existing_code": "                    try (InputStream inputStream = node.getAdapter(InputStream.class)) {\n                        if (inputStream != null) {\n                            monitor.subTask(\"Copy file\");\n                            Files.copy(inputStream, folder.resolve(node.getNodeDisplayName()));\n                        }\n                    } finally {\n                        monitor.worked(1);\n                    }",
+          "level": "MEDIUM",
+          "category": "resource-leak",
+          "type_detail": "non-closeable InputStream returned by getAdapter leaks OS handle",
+          "confidence": 0.55,
+          "description": "dropNodes treats whatever getAdapter(InputStream.class) returns as try-with-resources-managed. The InputStream created here (the IFile stream from DBNResource.getAdapter) is not auto-closeable by contract, and DBNNode.getAdapter in dbeaver-core does not exist as a synchronized/closeable wrapper - if any other implementation returns a non-Closeable stream or one that ignores close(), the try-with-resources silently does not release the underlying file handle. Additionally, when getAdapter returns null the `continue` path skips the existence check entirely, so the node is silently dropped with no log/trace, whereas the Path branch logs 'Resource ... doesn't not exists'.",
+          "suggestion": "Keep the try-with-resources, but ensure the stream is always a Closeable (guard with instanceof Closeable if needed) and add a log entry for the null-stream case so silently skipped nodes are traceable.",
+          "group": "g0",
+          "source": "llm",
+          "anchor_status": "hunk",
+          "anchored_line": 293
+        }
+      ]
+    },
+    {
+      "url": "https://github.com/elastic/elasticsearch/pull/133945",
+      "lang": "Java",
+      "stats": {
+        "expected_notes": 4,
+        "generated_notes": 0,
+        "line_match_count": 0,
+        "semantic_match_count": 0,
+        "line_match_rate": 0.0,
+        "semantic_match_rate": 0.0,
+        "line_recall_rate": 0.0,
+        "semantic_recall_rate": 0.0
+      },
+      "elapsed_s": 157.7,
+      "findings": []
+    },
+    {
+      "url": "https://github.com/elastic/elasticsearch/pull/123744",
+      "lang": "Java",
+      "stats": {
+        "expected_notes": 4,
+        "generated_notes": 4,
+        "line_match_count": 2,
+        "semantic_match_count": 0,
+        "line_match_rate": 0.5,
+        "semantic_match_rate": 0.0,
+        "line_recall_rate": 0.5,
+        "semantic_recall_rate": 0.0
+      },
+      "elapsed_s": 112.9,
+      "findings": [
+        {
+          "file": "libs/entitlement/src/main/java/org/elasticsearch/entitlement/runtime/policy/PolicyManager.java",
+          "line": 65,
+          "existing_code": "    static final Class<?> DEFAULT_FILESYSTEM_CLASS = PathUtils.getDefaultFileSystem().getClass();",
+          "level": "HIGH",
+          "category": "security",
+          "type_detail": "fail-open entitlement bypass keyed on FileSystem class identity",
+          "confidence": 0.75,
+          "description": "The new `DEFAULT_FILESYSTEM_CLASS` identity check makes file-checking fail open: `isPathOnDefaultFilesystem` returns false for ANY Path whose FileSystem class is not literally the class of `PathUtils.getDefaultFileSystem()` (e.g. sun.nio.fs.LinuxFileSystem/WindowsFileSystem/MacOSXFileSystem). `checkFileRead`/`checkFileWrite` then `return` immediately, so no entitlement check runs for read OR write. This means every non-default FileSystem provider (Jimfs, custom in-memory/NIO providers, and any future provider) silently bypasses file entitlements, and the code even logs it as 'trivially allowed'. There is no allowlist of trusted provider classes and no assertion that the bypass is intended for the specific providers that motivated it, so the security boundary is now a whitelist-by-accident of one concrete JDK class.",
+          "suggestion": "Do not silently allow arbitrary non-default providers. Either (a) keep enforcing entitlements for unknown providers (fail closed) and only skip for explicitly enumerated, audited provider classes (e.g. the in-memory/zip FS classes used in tests), or (b) restrict the bypass to read-only checks / to paths explicitly used in test infrastructure, and add a comment + assertion documenting the exact trusted provider set. At minimum log at WARN with the provider class when bypassing so bypasses are auditable.",
+          "group": "g0",
+          "source": "llm",
+          "anchor_status": "hunk",
+          "anchored_line": 65
+        },
+        {
+          "file": "libs/entitlement/src/main/java/org/elasticsearch/entitlement/runtime/policy/PolicyManager.java",
+          "line": 311,
+          "existing_code": "    private static boolean isPathOnDefaultFilesystem(Path path) {\n        var pathFileSystemClass = path.getFileSystem().getClass();\n        if (path.getFileSystem().getClass() != DEFAULT_FILESYSTEM_CLASS) {",
+          "level": "LOW",
+          "category": "performance",
+          "type_detail": "redundant repeated call",
+          "confidence": 0.6,
+          "description": "`path.getFileSystem()` is invoked twice in a row (once to capture `pathFileSystemClass`, once inside the `if` condition), doing duplicate work on a hot path that runs for every file access check. The captured local should be the one used in the comparison.",
+          "suggestion": "Compare the already-captured local: `if (pathFileSystemClass != DEFAULT_FILESYSTEM_CLASS)`.",
+          "group": "g0",
+          "source": "llm",
+          "anchor_status": "hunk",
+          "anchored_line": 311
+        },
+        {
+          "file": "libs/entitlement/src/main/java/org/elasticsearch/entitlement/runtime/policy/PolicyManager.java",
+          "line": 327,
+          "existing_code": "    public void checkFileRead(Class<?> callerClass, Path path) {\n        if (isPathOnDefaultFilesystem(path) == false) {\n            return;\n        }",
+          "level": "MEDIUM",
+          "category": "test-gap",
+          "type_detail": "security-relevant bypass untested",
+          "confidence": 0.7,
+          "description": "The newly introduced fail-open branch (`isPathOnDefaultFilesystem` returning false -> early return from checkFileRead/checkFileWrite) is security-relevant behavior, yet no test exercises it. A repo-wide search shows `isPathOnDefaultFilesystem` / `DEFAULT_FILESYSTEM_CLASS` appear only in the production file, with no test referencing them. Without a test, a regression that broadens the bypass (e.g. an unintended provider being skipped) or that flips the condition to always-allow would go unnoticed.",
+          "suggestion": "Add a PolicyManager/entitlement test that (1) asserts a read/write on a non-default FileSystem path is allowed with an explanatory trace, and (2) asserts a path on the default FileSystem still goes through entitlement checks (still denied when not entitled), pinning both sides of the branch.",
+          "group": "g0",
+          "source": "llm",
+          "anchor_status": "fulltext",
+          "anchored_line": 327
+        },
+        {
+          "file": "libs/entitlement/src/main/java/org/elasticsearch/entitlement/runtime/policy/FileAccessTree.java",
+          "line": 206,
+          "existing_code": "        logger.trace(() -> Strings.format(\"checking [%s] against [%s]\", path, String.join(\",\", paths)));",
+          "level": "LOW",
+          "category": "performance",
+          "type_detail": "trace logging in hot path",
+          "confidence": 0.5,
+          "description": "`checkPath` (and `isParent` below) are invoked for every file read/write entitlement check — a very hot path. The argument is a lambda supplier so the formatting cost is deferred, but on trace-enabled runs `String.join(\",\", paths)` on the full path array plus `Strings.format` allocates on every single check, which can notably slow file-intensive workloads while diagnosing. Also note `isParent` is called from `validateExclusivePaths` at build time, where the tracing is noise.",
+          "suggestion": "Verify the configured logger actually short-circuits `trace(Supplier)` (i.e. use a `logger.isTraceEnabled()` guard around the call if the supplier overload is not guaranteed lazy in this logging facade), and consider logging only the path count / a truncated candidate list instead of joining the entire array.",
+          "group": "g0",
+          "source": "llm",
+          "anchor_status": "hunk",
+          "anchored_line": 206
+        }
+      ]
+    },
+    {
+      "url": "https://github.com/facebook/react/pull/33059",
+      "lang": "JavaScript",
+      "stats": {
+        "expected_notes": 1,
+        "generated_notes": 0,
+        "line_match_count": 0,
+        "semantic_match_count": 0,
+        "line_match_rate": 0.0,
+        "semantic_match_rate": 0.0,
+        "line_recall_rate": 0.0,
+        "semantic_recall_rate": 0.0
+      },
+      "elapsed_s": 5.5,
+      "findings": []
+    },
+    {
+      "url": "https://github.com/mrdoob/three.js/pull/30750",
+      "lang": "JavaScript",
+      "stats": {
+        "expected_notes": 4,
+        "generated_notes": 0,
+        "line_match_count": 0,
+        "semantic_match_count": 0,
+        "line_match_rate": 0.0,
+        "semantic_match_rate": 0.0,
+        "line_recall_rate": 0.0,
+        "semantic_recall_rate": 0.0
+      },
+      "elapsed_s": 121.5,
+      "findings": []
+    },
+    {
+      "url": "https://github.com/nodejs/node/pull/56185",
+      "lang": "JavaScript",
+      "stats": {
+        "expected_notes": 4,
+        "generated_notes": 4,
+        "line_match_count": 1,
+        "semantic_match_count": 0,
+        "line_match_rate": 0.25,
+        "semantic_match_rate": 0.0,
+        "line_recall_rate": 0.25,
+        "semantic_recall_rate": 0.0
+      },
+      "elapsed_s": 383.0,
+      "findings": [
+        {
+          "file": "lib/repl.js",
+          "line": 134,
+          "existing_code": "  (e) => e[0] !== '_' && !StringPrototypeStartsWith(e, 'node:'),",
+          "level": "INFO",
+          "category": "correctness",
+          "type_detail": "filter on CJSModule.builtinModules; node:-prefixed entries",
+          "confidence": 0.4,
+          "description": "The filter now excludes names starting with 'node:' in addition to '_'-prefixed ones. This is only correct if CJSModule.builtinModules actually contains 'node:'-prefixed entries and if downstream consumers rely on _builtinLibs being bare names. In this repo the list is also re-exported as the deprecated repl._builtinLibs (lines 1863-1880) and the new entries are re-prefixed via nodeSchemeBuiltinLibs (`node:${lib}`, line 137). If builtinModules already returns bare names, the added predicate is dead code that only increases divergence risk between repl._builtinLibs and module.builtinModules; if it does return 'node:' entries, the previous code would have produced 'node:node:fs' and the fix is right. Worth confirming which contract holds and keeping the deprecated getter consistent.",
+          "suggestion": "Confirm CJSModule.builtinModules never/always yields 'node:'-prefixed entries; if it can yield them, also document/normalize repl._builtinLibs consumers so the deprecated export stays consistent.",
+          "group": "g1",
+          "source": "llm",
+          "anchor_status": "hunk",
+          "anchored_line": 134
+        },
+        {
+          "file": "test/parallel/test-repl-tab-complete-import.js",
+          "line": 58,
+          "existing_code": "  publicUnprefixedModules.forEach((lib, index) => {\n    lastIndex = completions.indexOf(`node:${lib}`);\n    assert.notStrictEqual(lastIndex, -1);\n  });\n  assert.strictEqual(completions[lastIndex + 1], '');\n  // There is only one Node.js module that starts with n:\n  assert.strictEqual(completions[lastIndex + 2], 'net');",
+          "level": "MEDIUM",
+          "category": "correctness",
+          "type_detail": "loop-carried lastIndex from filtered list",
+          "confidence": 0.55,
+          "description": "The rename to publicUnprefixedModules changes the set used to compute lastIndex. Previously lastIndex was the position of the LAST element in publicModules (since forEach ran over all of them, in list order), and the following assertions (completions[lastIndex + 1] === '', [lastIndex+2] === 'net') depend on lastIndex pointing at the final 'node:<lib>' entry of the completion list. After filtering out 'node:'-prefixed entries from the array, the last iteration is no longer guaranteed to be the last entry in the completion output (the underlying completion order is independent of this filter), so lastIndex may point at a middle entry and the subsequent offset assertions may break/flake depending on completion ordering.",
+          "suggestion": "Do not derive lastIndex from a filtered forEach; compute it independently, e.g. take the last index of the last expected 'node:' entry from the actual completions array (e.g. using completions.map(...).lastIndexOf or explicitly locating the maximum matching index) before asserting the trailing entries.",
+          "group": "g4",
+          "source": "llm",
+          "anchor_status": "fulltext",
+          "anchored_line": 58
+        },
+        {
+          "file": "test/parallel/test-repl-tab-complete.js",
+          "line": 298,
+          "existing_code": "  publicModules.filter((lib) => !lib.startsWith('node:')).forEach((lib, index) => {\n    lastIndex = data[0].indexOf(`node:${lib}`);\n    assert.notStrictEqual(lastIndex, -1);\n  });\n  assert.strictEqual(data[0][lastIndex + 1], '');",
+          "level": "MEDIUM",
+          "category": "correctness",
+          "type_detail": "loop-carried lastIndex from filtered list",
+          "confidence": 0.55,
+          "description": "Same pattern as the import test: lastIndex is now produced by iterating a filtered subset of publicModules (dropping 'node:' entries). The following assertions (data[0][lastIndex + 1] === '', [lastIndex+2] === 'net') rely on lastIndex being the index of the last 'node:<lib>' completion. Filtering the iteration source does not guarantee the last processed item is the last 'node:' item in the actual output, so these offset assertions can silently point to the wrong entry.",
+          "suggestion": "Compute lastIndex directly from data[0] (e.g. maximum index among all `node:${lib}` matches) instead of relying on the last iteration of a filtered forEach.",
+          "group": "g4",
+          "source": "llm",
+          "anchor_status": "fulltext",
+          "anchored_line": 298
+        },
+        {
+          "file": "test/parallel/test-process-get-builtin.mjs",
+          "line": 43,
+          "existing_code": "for (const id of publicBuiltins) {\n  if (!id.startsWith('node:')) {\n    const imported = await import(`node:${id}`);\n    assert.strictEqual(process.getBuiltinModule(id), imported.default);\n  }\n}",
+          "level": "LOW",
+          "category": "test-gap",
+          "type_detail": "assertion skipped for prefixed ids",
+          "confidence": 0.45,
+          "description": "With the added `!id.startsWith('node:')` guard, entries in publicBuiltins that are already 'node:'-prefixed are now skipped entirely for the import(id)/getBuiltinModule comparison. The test no longer verifies that process.getBuiltinModule(id) equals the dynamic-import default for those prefixed public builtins, silently reducing coverage. If the intent is to only test the unprefixed form here, it would be clearer to assert the prefixed form in the second loop (which also gained the same guard).",
+          "suggestion": "Verify that the second loop (over publicBuiltins.add('test')) actually covers the prefixed ids; otherwise add an explicit assertion for 'node:'-prefixed ids so no public builtin loses coverage.",
+          "group": "g4",
+          "source": "llm",
+          "anchor_status": "fulltext",
+          "anchored_line": 43
+        }
+      ]
+    },
+    {
+      "url": "https://github.com/sveltejs/svelte/pull/15250",
+      "lang": "JavaScript",
+      "stats": {
+        "expected_notes": 14,
+        "generated_notes": 7,
+        "line_match_count": 4,
+        "semantic_match_count": 0,
+        "line_match_rate": 0.571,
+        "semantic_match_rate": 0.0,
+        "line_recall_rate": 0.286,
+        "semantic_recall_rate": 0.0
+      },
+      "elapsed_s": 151.7,
+      "findings": [
+        {
+          "file": "packages/svelte/src/compiler/phases/3-transform/client/visitors/IfBlock.js",
+          "line": 73,
+          "existing_code": "\t\targs.push(b.id('$$elseif'));",
+          "level": "HIGH",
+          "category": "correctness",
+          "type_detail": "reference to non-existent binding for elseif branch",
+          "confidence": 0.45,
+          "description": "当 `node.elseif` 为 true 时，统一把第三个参数（否则为 `b.literal(true)`）替换成标识符 `$$elseif`。但 `$$elseif` 这个形参只在“外层 if 块的 alternate 恰好是单个 elseif IfBlock”这一种情形下由父级生成的箭头函数提供；如果一个 elseif IfBlock 出现在其它位置（例如作为非以 alternate 形式链接的插槽/块），`$$elseif` 在作用域内并不存在，会生成引用未定义变量的代码（ReferenceError / 编译错误）。此外 `node.elseif` 只表示“我是 elseif”，并不保证调用点真的把 `$$elseif` 参数传了进来，二者并非等价条件。",
+          "suggestion": "把真值来源改为由调用上下文显式传入（例如 `context.state.elseif_flag` 或 `alternate_args` 对齐的布尔），确保只有确实生成 `$$elseif` 形参的那条路径才引用该标识符；否则回退到 `b.literal(true)`。",
+          "group": "g1",
+          "source": "llm",
+          "anchor_status": "hunk",
+          "anchored_line": 73
+        },
+        {
+          "file": "packages/svelte/src/compiler/phases/3-transform/client/visitors/Fragment.js",
+          "line": 53,
+          "existing_code": "\t\t\t(trimmed[0].type === 'IfBlock' && trimmed[0].elseif));",
+          "level": "MEDIUM",
+          "category": "test-gap",
+          "type_detail": "missing test for new inline-if branch",
+          "confidence": 0.4,
+          "description": "新增 `is_single_child_not_needing_template` 允许单个带 `elseif` 的 IfBlock 直接内联（不走模板），但该文件/PR 中未见针对这一新分支的编译快照或运行时测试。若 `trimmed[0].elseif` 为真而调用方未把 `$$elseif` 参数传入（见 IfBlock.js 的改动），生成代码会引用未定义标识符，属于只有测试能覆盖到的边界。",
+          "suggestion": "补充 `{#if}...{:else if}...{/if}` 作为 Fragment 唯一子节点（含嵌套 elseif 链、以及非唯一子节点）的编译输出快照测试，确保不生成引用未定义 `$$elseif` 的代码。",
+          "group": "g1",
+          "source": "llm",
+          "anchor_status": "hunk",
+          "anchored_line": 53
+        },
+        {
+          "file": "packages/svelte/src/compiler/phases/3-transform/server/visitors/IfBlock.js",
+          "line": 20,
+          "existing_code": "\tlet alt = node.alternate;\n\twhile (alt && alt.nodes.length === 1 && alt.nodes[0].type === 'IfBlock' && alt.nodes[0].elseif) {",
+          "level": "MEDIUM",
+          "category": "correctness",
+          "type_detail": "fragile AST-shape guard for elseif chain",
+          "confidence": 0.45,
+          "description": "The elseif-chain flattening relies on a strict AST shape check (`alt.nodes.length === 1` and `alt.nodes[0].type === 'IfBlock' && .elseif`). If an `{:else if}` alternate can be wrapped with extra nodes (e.g. a whitespace/text node, or a nested block wrapper) the loop exits early and the remaining elseif is compiled as a plain alternate — producing a different (possibly incorrect) marker/nesting layout than the flattened form. The guard silently degrades rather than failing loudly.",
+          "suggestion": "Assert/handle the expected shape explicitly (or normalize the alternate before the loop) so an unexpected node list cannot silently produce a divergent if/else chain; add a test with whitespace/comments between `{:else if}` branches.",
+          "group": "g2",
+          "source": "llm",
+          "anchor_status": "hunk",
+          "anchored_line": 20
+        },
+        {
+          "file": "packages/svelte/src/compiler/phases/3-transform/server/visitors/IfBlock.js",
+          "line": 23,
+          "existing_code": "\tconst alternate = /** @type {BlockStatement} */ (context.visit(elseif.consequent));\n\t\talternate.body.unshift(\n\t\t\tb.stmt(b.assignment('+=', b.id('$$payload.out'), b.literal(`<!--[${index++}-->`)))\n\t\t);",
+          "level": "HIGH",
+          "category": "correctness",
+          "type_detail": "SSR hydration marker mismatch for elseif branches",
+          "confidence": 0.55,
+          "description": "Each elseif branch now emits a `<!--[N-->` hydration marker (index starting at 1), but the trailing `if_statement.alternate.body.unshift(... BLOCK_OPEN_ELSE)` only runs for the final else/empty block. Branches whose consequent is emitted by the `while` loop never get BLOCK_OPEN_ELSE, so the marker sequence produced here must match exactly what the client-side hydration walker expects (the client `if.js` block in this same PR was changed to consume these markers). If the client expects an else-anchor (or different index base/ordering) per branch, hydration offsets drift and hydration breaks/mismatches for `{:else if}` trees.",
+          "suggestion": "Verify the marker protocol against the client `if.js` consumer: confirm whether elseif branches need BLOCK_OPEN_ELSE (or an equivalent anchor) and that index numbering/base aligns; add an SSR+hydrate test covering multi-branch `{:else if}{:else}`.",
+          "group": "g2",
+          "source": "llm",
+          "anchor_status": "hunk",
+          "anchored_line": 23
+        },
+        {
+          "file": "packages/svelte/src/internal/client/dom/blocks/if.js",
+          "line": 20,
+          "existing_code": "\texport function if_block(node, fn, [root_index, hydrate_index] = [0, 0]) {",
+          "level": "LOW",
+          "category": "correctness",
+          "type_detail": "destructuring default masks explicit undefined",
+          "confidence": 0.4,
+          "description": "The third parameter is destructured with a default `= [0, 0]`. Any caller that passes `undefined` (or a JS consumer calling `if_block(node, fn, undefined)`) gets the root default `[0, 0]`, which then re-enters the root hydration path (`if (hydrating && root_index === 0) hydrate_next()` and reading `anchor.data`). Since this function's public/internal contract changed from a boolean `elseif` flag to a tuple, stale callers passing the old boolean `false` will destructure into `root_index = undefined, hydrate_index = undefined` (booleans are not iterable -> TypeError) or silently misbehave. Verify all call sites were updated.",
+          "suggestion": "Either make the signature non-destructured and read fields defensively, or add an explicit guard/assertion that the tuple form is always supplied; at minimum confirm no remaining `if_block(node, fn, false)` call sites exist.",
+          "group": "g3",
+          "source": "llm",
+          "anchor_status": "hunk",
+          "anchored_line": 20
+        },
+        {
+          "file": "packages/svelte/src/internal/client/dom/blocks/if.js",
+          "line": 65,
+          "existing_code": "\t\t\t\thydrate_index = parseInt(data.substring(1));\n\t\t\t\t\tif (hydrate_index !== hydrate_index) {",
+          "level": "MEDIUM",
+          "category": "correctness",
+          "type_detail": "NaN-based sentinel uses index-parse fallthrough",
+          "confidence": 0.6,
+          "description": "`parseInt(data.substring(1))` treats the comment data after the `#` as a numeric else-if branch index. When the data is `#` (plain HYDRATION_START-like but handled earlier) it is fine, but any other non-numeric comment data silently becomes NaN and is remapped to `Infinity`/`-1`. Relying on `hydrate_index !== hydrate_index` (NaN self-inequality) as the detection is obscure and, more importantly, `parseInt` will happily accept partially numeric strings (e.g. `'1abc'` -> 1), so a malformed/attacker-influenced hydration marker can be mis-parsed into a real branch index instead of forcing a mismatch. Prefer a strict integer parse (e.g. `/^\\d+$/.test(...)`) so malformed data reliably forces a mismatch rather than being coerced.",
+          "suggestion": "Use a strict numeric check (Number.isInteger after a regex test / parseInt with a whitelist check) instead of relying on NaN self-inequality, so partially-numeric comment data cannot be coerced into a valid branch index.",
+          "group": "g3",
+          "source": "llm",
+          "anchor_status": "hunk",
+          "anchored_line": 65
+        },
+        {
+          "file": "packages/svelte/src/internal/client/dom/blocks/if.js",
+          "line": 91,
+          "existing_code": "\t\t\t\tconsequent_effect = branch(() => fn(anchor));",
+          "level": "MEDIUM",
+          "category": "correctness",
+          "type_detail": "inconsistent elseif tuple propagation between consequent and alternate branches",
+          "confidence": 0.45,
+          "description": "In `update_branch`, only the alternate (else/else-if) branch forwards the nested tuple: `alternate_effect = branch(() => fn(anchor, [root_index + 1, hydrate_index]))`, whereas the consequent branch calls `fn(anchor)` with no tuple. `fn` here is the compiler-generated if-block body which invokes nested `if_block`/else-if children with that tuple. A nested else-if inside the *consequent* body therefore receives no `[root_index, hydrate_index]` and falls back to `[0,0]`, which resets `if (hydrating && root_index === 0) hydrate_next()` and re-reads the anchor's hydration comment — likely double-advancing hydration or mis-assigning branch indices for else-if chains nested inside a truthy consequent. Confirm whether the consequent path is intentionally tuple-less; if not, the consequent call should also pass `[root_index + 1, hydrate_index]` (or the same tuple form) to keep hydration index bookkeeping consistent.",
+          "suggestion": "Make the consequent branch forward the same `[root_index + 1, hydrate_index]` tuple as the alternate branch, or document why the consequent does not need it.",
+          "group": "g3",
+          "source": "llm",
+          "anchor_status": "fulltext",
+          "anchored_line": 91
+        }
+      ]
+    },
+    {
+      "url": "https://github.com/laravel/framework/pull/56591",
+      "lang": "PHP",
+      "stats": {
+        "expected_notes": 1,
+        "generated_notes": 0,
+        "line_match_count": 0,
+        "semantic_match_count": 0,
+        "line_match_rate": 0.0,
+        "semantic_match_rate": 0.0,
+        "line_recall_rate": 0.0,
+        "semantic_recall_rate": 0.0
+      },
+      "elapsed_s": 56.6,
+      "findings": []
+    },
+    {
+      "url": "https://github.com/symfony/symfony/pull/60956",
+      "lang": "PHP",
+      "stats": {
+        "expected_notes": 1,
+        "generated_notes": 1,
+        "line_match_count": 0,
+        "semantic_match_count": 0,
+        "line_match_rate": 0.0,
+        "semantic_match_rate": 0.0,
+        "line_recall_rate": 0.0,
+        "semantic_recall_rate": 0.0
+      },
+      "elapsed_s": 52.0,
+      "findings": [
+        {
+          "file": "src/Symfony/Component/TypeInfo/Tests/TypeFactoryTest.php",
+          "line": 257,
+          "existing_code": "        yield [Type::enum(DummyEnum::class), DummyEnum::ONE];\n        yield [Type::enum(DummyBackedEnum::class), DummyBackedEnum::ONE];",
+          "level": "LOW",
+          "category": "test-gap",
+          "type_detail": "nested value coverage / tautological expected value",
+          "confidence": 0.55,
+          "description": "The two new provider cases only cover a top-level enum case passed directly to fromValue, so they exercise only the top of the new `is_subclass_of($value::class, \\UnitEnum::class)` arm. The branch is in fact reached recursively (fromValue is called per element on line 433/434) when an enum case is nested inside an array/iterable, and that path is not covered by any provider case (cases at lines 281-287 use int/bool/string/object, never an enum). This reproduces the historical finding on this same line. Additionally, the expected value is built with the same `Type::enum()` factory that the production branch under test calls, so the assertion can only fail if fromValue returns a non-enum type; it does not pin the concrete expected type (EnumType vs BackedEnumType) or the derived backing type.",
+          "suggestion": "Add at least one nested case, e.g. `yield [Type::list(Type::enum(DummyEnum::class)), [DummyEnum::ONE]];` (and/or an enum case inside a dict/ixed array), and consider asserting on the concrete type instance (`EnumType` / `BackedEnumType` with the expected backing type) rather than reusing the factory that the code under test calls for both sides.",
+          "group": "g0",
+          "source": "llm",
+          "anchor_status": "hunk",
+          "anchored_line": 257
+        }
+      ]
+    },
+    {
+      "url": "https://github.com/filamentphp/filament/pull/15267",
+      "lang": "PHP",
+      "stats": {
+        "expected_notes": 2,
+        "generated_notes": 2,
+        "line_match_count": 2,
+        "semantic_match_count": 0,
+        "line_match_rate": 1.0,
+        "semantic_match_rate": 0.0,
+        "line_recall_rate": 1.0,
+        "semantic_recall_rate": 0.0
+      },
+      "elapsed_s": 121.2,
+      "findings": [
+        {
+          "file": "packages/support/src/helpers.php",
+          "line": 184,
+          "existing_code": "if (in_array($driverName, ['mysql', 'mariadb'], true) && str($column)->contains('->') && ! str($column)->startsWith('json_extract(')) {",
+          "level": "HIGH",
+          "category": "correctness",
+          "type_detail": "over-broad trigger condition on '->' operator",
+          "confidence": 0.72,
+          "description": "The new rewrite trigger uses `str($column)->contains('->')`, which is over-broad and matches inputs that are not plain `column->path` JSON references:\n1) `->>` (MySQL's JSON unquote operator): wrapping `col->>'$.x'` with `wrapJsonFieldAndPath()` yields a broken/unintended expression (the `>>` is not handled), and the whole quote semantics are lost.\n2) Any identifier or raw expression that merely contains the substring `->` (e.g. a column literally named `foo->bar` in a non-JSON sense, or an already-composed expression that is not in `json_extract(...)` form) gets re-wrapped, silently changing the query semantics.\nThe guard only excludes strings that start with `json_extract(`; prefixed/qualified forms (e.g. `table.column->path`) or already-lower()/other wrapped expressions are not excluded.",
+          "suggestion": "Narrow the detection to a genuine JSON path reference, e.g. require a match of a pattern like `/^[\\w.]+->>?\\$?\\.?/` (or specifically exclude `->>`), instead of `contains('->')`. Add tests covering `->>`, plain `column->path`, and `table.column->path`.",
+          "group": "g0",
+          "source": "llm",
+          "anchor_status": "hunk",
+          "anchored_line": 184
+        },
+        {
+          "file": "packages/support/src/helpers.php",
+          "line": 187,
+          "existing_code": "$column = \"json_extract({$field}{$path})\";",
+          "level": "MEDIUM",
+          "category": "test-gap",
+          "type_detail": "driver-specific SQL generation without test",
+          "confidence": 0.6,
+          "description": "This diff adds driver-specific SQL string generation (MySQL/MariaDB `->` JSON path rewriting into `json_extract(...)` before applying `lower()`), but no test is added asserting the generated SQL for these drivers. Without a test the exact output of `wrapJsonFieldAndPath()` (spacing/quoting between `$field` and `$path`) and the regression cases (already json_extract, `->>`, qualified columns) are unverified.",
+          "suggestion": "Add tests for generate_search_column_expression() with mysql/mariadb connections asserting: `column->path` becomes `lower(json_extract(\\`column\\`, '$.\"path\"'))`, and that `json_extract(...)`/`->>` inputs are left untouched.",
+          "group": "g0",
+          "source": "llm",
+          "anchor_status": "hunk",
+          "anchored_line": 187
+        }
+      ]
+    },
+    {
+      "url": "https://github.com/filamentphp/filament/pull/15756",
+      "lang": "PHP",
+      "stats": {
+        "expected_notes": 1,
+        "generated_notes": 0,
+        "line_match_count": 0,
+        "semantic_match_count": 0,
+        "line_match_rate": 0.0,
+        "semantic_match_rate": 0.0,
+        "line_recall_rate": 0.0,
+        "semantic_recall_rate": 0.0
+      },
+      "elapsed_s": 39.5,
+      "findings": []
+    },
+    {
+      "url": "https://github.com/infiniflow/ragflow/pull/6691",
+      "lang": "Python",
+      "stats": {
+        "expected_notes": 6,
+        "generated_notes": 4,
+        "line_match_count": 4,
+        "semantic_match_count": 0,
+        "line_match_rate": 1.0,
+        "semantic_match_rate": 0.0,
+        "line_recall_rate": 0.667,
+        "semantic_recall_rate": 0.0
+      },
+      "elapsed_s": 64.1,
+      "findings": [
+        {
+          "file": "graphrag/entity_resolution.py",
+          "line": 114,
+          "existing_code": "                merging_nodes = list(sub_connect_graph.nodes())",
+          "level": "CRITICAL",
+          "category": "correctness",
+          "type_detail": "wrong API on set object -> AttributeError",
+          "confidence": 0.95,
+          "description": "`nx.connected_components(connect_graph)` yields plain `set` objects of node names, not subgraphs. Sets have no `.nodes()` method, so this line raises `AttributeError: 'set' object has no attribute 'nodes'` on the first connected component. The previous `list(sub_connect_graph.nodes)` was correct — `set.nodes` would also fail, so the real intent is `list(sub_connect_graph)`. This is a regression that breaks entity resolution entirely.",
+          "suggestion": "Use `merging_nodes = list(sub_connect_graph)` (the yielded set already contains the node names). Note the pre-existing `_merge_graph_nodes` also accepts node-name lists, so no further change is needed.",
+          "group": "g0",
+          "source": "llm",
+          "anchor_status": "hunk",
+          "anchored_line": 114
+        },
+        {
+          "file": "graphrag/general/extractor.py",
+          "line": 204,
+          "existing_code": "            node0_attrs[\"source_id\"] = sorted(set(node0_attrs[\"source_id\"].extend(node1_attrs.get(\"source_id\", []))))",
+          "level": "CRITICAL",
+          "category": "correctness",
+          "type_detail": "list.extend returns None -> sorted(set(None)) TypeError",
+          "confidence": 0.95,
+          "description": "`list.extend()` mutates in place and returns `None`. Here the return value is passed to `set(...)`, so `set(None)` raises `TypeError: 'NoneType' object is not iterable`, crashing `_merge_graph_nodes` on every node merge. This is the same bug class previously found in this file (list.extend misuse) and it has been reintroduced.",
+          "suggestion": "Split the mutation and the read, e.g. `node0_attrs[\"source_id\"].extend(node1_attrs.get(\"source_id\", []))` followed by `node0_attrs[\"source_id\"] = sorted(set(node0_attrs[\"source_id\"]))`, or use `sorted(set(node0_attrs[\"source_id\"]) | set(node1_attrs.get(\"source_id\", [])))`.",
+          "group": "g0",
+          "source": "llm",
+          "anchor_status": "hunk",
+          "anchored_line": 204
+        },
+        {
+          "file": "graphrag/general/extractor.py",
+          "line": 216,
+          "existing_code": "                            edge0_attrs[attr] = sorted(set(edge0_attrs[attr].extend(edge1_attrs.get(attr, []))))",
+          "level": "CRITICAL",
+          "category": "correctness",
+          "type_detail": "list.extend returns None -> sorted(set(None)) TypeError",
+          "confidence": 0.95,
+          "description": "Same `list.extend()` misuse in the edge-merge path: `edge0_attrs[attr].extend(...)` evaluates to `None`, so `sorted(set(None))` raises `TypeError`. The edge attributes (keywords/source_id) merge therefore always raises when two nodes sharing a neighbor are merged, aborting the whole merge. This is the identical historical finding reproduced (both node and edge paths).",
+          "suggestion": "Use `edge0_attrs[attr] = sorted(set(edge0_attrs[attr]) | set(edge1_attrs.get(attr, [])))` (or extend first, then recompute `sorted(set(...))`), which also removes the need for the in-place mutation side effect.",
+          "group": "g0",
+          "source": "llm",
+          "anchor_status": "hunk",
+          "anchored_line": 216
+        },
+        {
+          "file": "graphrag/utils.py",
+          "line": 442,
+          "existing_code": "                 nursery.start_soon(lambda: trio.to_thread.run_sync(lambda: settings.docStoreConn.delete({\"knowledge_graph_kwd\": [\"relation\"], \"from_entity_kwd\": from_node, \"to_entity_kwd\": to_node}, search.index_name(tenant_id), kb_id)))",
+          "level": "HIGH",
+          "category": "concurrency",
+          "type_detail": "late-binding closure over loop variables in start_soon",
+          "confidence": 0.85,
+          "description": "Both nested lambdas close over the loop variables `from_node`/`to_node`. `nursery.start_soon` only registers the coroutine; the outer lambda (and the inner one) are evaluated later when the scheduled task runs, by which time the `for` loop has advanced to its final iteration. Every scheduled delete therefore operates on the last (from_node, to_node) pair, and the edge deletions for all earlier pairs are lost. This is the previously reported concurrency defect reproduced verbatim.",
+          "suggestion": "Bind the loop values via default arguments: `for from_node, to_node in change.removed_edges: nursery.start_soon(lambda f=from_node, t=to_node: trio.to_thread.run_sync(lambda: settings.docStoreConn.delete({..., \"from_entity_kwd\": f, \"to_entity_kwd\": t}, search.index_name(tenant_id), kb_id)))`, or use a helper coroutine taking the pair as parameters.",
+          "group": "g0",
+          "source": "llm",
+          "anchor_status": "hunk",
+          "anchored_line": 442
+        }
+      ]
+    },
+    {
+      "url": "https://github.com/vllm-project/vllm/pull/24425",
+      "lang": "Python",
+      "stats": {
+        "expected_notes": 1,
+        "generated_notes": 2,
+        "line_match_count": 0,
+        "semantic_match_count": 0,
+        "line_match_rate": 0.0,
+        "semantic_match_rate": 0.0,
+        "line_recall_rate": 0.0,
+        "semantic_recall_rate": 0.0
+      },
+      "elapsed_s": 55.9,
+      "findings": [
+        {
+          "file": "vllm/distributed/kv_transfer/kv_connector/v1/multi_connector.py",
+          "line": 91,
+          "existing_code": "        exception: Optional[Exception] = None\n        for c in self._connectors:\n            try:\n                c.shutdown()\n            except Exception as e:\n                logger.exception(\"Exception during connector %s shutdown.\",\n                                 c.__class__.__name__)\n                exception = e",
+          "level": "MEDIUM",
+          "category": "error-handling",
+          "type_detail": "only last exception retained; earlier failures dropped",
+          "confidence": 0.7,
+          "description": "`exception = e` overwrites the variable on every failed connector, so only the last connector's exception is ever re-raised. If multiple connectors raise during shutdown, all but the final one are logged and then discarded, hiding the full failure set from the caller. Prefer aggregating the exceptions.",
+          "suggestion": "Collect exceptions into a list and re-raise as an ExceptionGroup (`raise ExceptionGroup(...)`) so no failures are silently dropped.",
+          "group": "g0",
+          "source": "llm",
+          "anchor_status": "hunk",
+          "anchored_line": 91
+        },
+        {
+          "file": "vllm/distributed/kv_transfer/kv_connector/v1/multi_connector.py",
+          "line": 99,
+          "existing_code": "        if exception:\n            raise exception",
+          "level": "MEDIUM",
+          "category": "correctness",
+          "type_detail": "truthiness test on exception object (recurrence)",
+          "confidence": 0.85,
+          "description": "`if exception:` performs a truthiness test on the caught exception object instead of an identity check (`if exception is not None:`). By default exceptions are truthy so this usually works, but the correct/idiomatic guard is an `is not None` check. This is a recurrence of the historical review finding on this exact function.",
+          "suggestion": "Use `if exception is not None: raise exception`.",
+          "group": "g0",
+          "source": "llm",
+          "anchor_status": "hunk",
+          "anchored_line": 99
+        }
+      ]
+    },
+    {
+      "url": "https://github.com/comfyanonymous/ComfyUI/pull/6542",
+      "lang": "Python",
+      "stats": {
+        "expected_notes": 2,
+        "generated_notes": 0,
+        "line_match_count": 0,
+        "semantic_match_count": 0,
+        "line_match_rate": 0.0,
+        "semantic_match_rate": 0.0,
+        "line_recall_rate": 0.0,
+        "semantic_recall_rate": 0.0
+      },
+      "elapsed_s": 1.8,
+      "findings": []
+    },
+    {
+      "url": "https://github.com/langflow-ai/langflow/pull/5388",
+      "lang": "Python",
+      "stats": {
+        "expected_notes": 3,
+        "generated_notes": 0,
+        "line_match_count": 0,
+        "semantic_match_count": 0,
+        "line_match_rate": 0.0,
+        "semantic_match_rate": 0.0,
+        "line_recall_rate": 0.0,
+        "semantic_recall_rate": 0.0
+      },
+      "elapsed_s": 70.9,
+      "findings": []
+    },
+    {
+      "url": "https://github.com/linera-io/linera-protocol/pull/3151",
+      "lang": "Rust",
+      "stats": {
+        "expected_notes": 1,
+        "generated_notes": 0,
+        "line_match_count": 0,
+        "semantic_match_count": 0,
+        "line_match_rate": 0.0,
+        "semantic_match_rate": 0.0,
+        "line_recall_rate": 0.0,
+        "semantic_recall_rate": 0.0
+      },
+      "elapsed_s": 25.7,
+      "findings": []
+    },
+    {
+      "url": "https://github.com/linera-io/linera-protocol/pull/4639",
+      "lang": "Rust",
+      "stats": {
+        "expected_notes": 6,
+        "generated_notes": 1,
+        "line_match_count": 1,
+        "semantic_match_count": 0,
+        "line_match_rate": 1.0,
+        "semantic_match_rate": 0.0,
+        "line_recall_rate": 0.167,
+        "semantic_recall_rate": 0.0
+      },
+      "elapsed_s": 99.7,
+      "findings": [
+        {
+          "file": "linera-core/src/client/mod.rs",
+          "line": 850,
+          "existing_code": "        let max_entries = std::env::var(CHAIN_INFO_RECEIVED_LOG_MAX_ENTRIES_VAR)\n            .ok()\n            .and_then(|var| var.parse().ok())\n            .unwrap_or(CHAIN_INFO_RECEIVED_LOG_MAX_ENTRIES_DEFAULT);\n        loop {",
+          "level": "HIGH",
+          "category": "correctness",
+          "type_detail": "env var misconfiguration causes silent truncation of remote received log",
+          "confidence": 0.5,
+          "description": "The client-side truncation limit is read from LINERA_CHAIN_INFO_RECEIVED_LOG_MAX_ENTRIES and silently falls back to the default (1000) whenever the value is absent or unparseable. If a validator operator lowers the limit (e.g. sets 100 to reduce payload), the validator's ChainInfo response is capped at 100 entries, but this client still assumes a page size of 1000 for its loop: `received_entries` (=100) is `< max_entries` (=1000), so the loop breaks after the first page and everything beyond the validator's cap is silently dropped. This makes the client fetch an incomplete remote received log instead of retrying with pagination, producing wrong synchronization results with no error surface.",
+          "suggestion": "Do not infer the remaining-page condition from a locally-configured limit. Compare against the validator-returned total (`info.count_received_log`) or continue until `offset == count_received_log`, and/or surface the effective per-page size in the ChainInfo response so the client pages on the authoritative value.",
+          "group": "g0",
+          "source": "llm",
+          "anchor_status": "hunk",
+          "anchored_line": 850
+        }
+      ]
+    },
+    {
+      "url": "https://github.com/linera-io/linera-protocol/pull/3075",
+      "lang": "Rust",
+      "stats": {
+        "expected_notes": 4,
+        "generated_notes": 9,
+        "line_match_count": 0,
+        "semantic_match_count": 0,
+        "line_match_rate": 0.0,
+        "semantic_match_rate": 0.0,
+        "line_recall_rate": 0.0,
+        "semantic_recall_rate": 0.0
+      },
+      "elapsed_s": 194.5,
+      "findings": [
+        {
+          "file": "linera-core/src/updater.rs",
+          "line": 133,
+          "existing_code": "    let start_time = Instant::now();\n    let mut end_time: Option<Instant> = None;",
+          "level": "LOW",
+          "category": "correctness",
+          "type_detail": "grace period derived from measured elapsed time",
+          "confidence": 0.4,
+          "description": "The grace period is computed from `start_time.elapsed()`, i.e. the wall-clock time spent waiting for the quorum, and it is only set once `highest_key_score >= quorum_threshold`. If the quorum is reached almost immediately (typical fast path), start_time.elapsed() is tiny and the extra wait window becomes negligible/inconsistent between runs, so the intended 'give other validators additional time' may not actually happen. This is timing-dependent behavior worth an explicit test/documentation of the minimum wait.",
+          "suggestion": "Consider a minimum absolute grace duration in addition to the fraction, and document/test the resulting wait behavior.",
+          "group": "g0",
+          "source": "llm",
+          "anchor_status": "fulltext",
+          "anchored_line": 133
+        },
+        {
+          "file": "linera-core/src/updater.rs",
+          "line": 172,
+          "existing_code": "        // If it becomes clear that no key can reach a quorum, break early.\n        if highest_key_score + remaining_votes < committee.quorum_threshold() {\n            break 'vote_wait;\n        }",
+          "level": "MEDIUM",
+          "category": "correctness",
+          "type_detail": "behavior change: early break skips error collection",
+          "confidence": 0.45,
+          "description": "The refactor changed the 'no quorum possible' branch from setting `end_time` (which still drained in-flight responses/errors until the grace period to accumulate error information) to an immediate `break 'vote_wait`. This is a behavioral change: on the branch where no key can reach a quorum, remaining responses are no longer awaited, so error information that would have been collected as `error_scores` (potentially reaching `validity_threshold` and returning a `CommunicationError::Trusted`) is discarded. The function now reaches the NoConsensus/Sample return path sooner and with fewer error details.",
+          "suggestion": "Confirm this early-break is intentional. If richer error reporting was relied upon for diagnostics, consider draining pending responses (with a short bound) before breaking, or document the intentional behavior change.",
+          "group": "g3",
+          "source": "llm",
+          "anchor_status": "hunk",
+          "anchored_line": 172
+        },
+        {
+          "file": "linera-core/src/updater.rs",
+          "line": 179,
+          "existing_code": "        if end_time.is_none() && highest_key_score >= committee.quorum_threshold() {\n            end_time = Some(Instant::now() + start_time.elapsed().mul_f64(grace_period));\n        }",
+          "level": "HIGH",
+          "category": "correctness",
+          "type_detail": "unvalidated f64 ratio / potential negative grace period",
+          "confidence": 0.6,
+          "description": "`grace_period` is a plain `f64` parameter with no validation, and it is passed directly into `start_time.elapsed().mul_f64(grace_period)`. A negative value makes `end_time` fall in the past, so `saturating_duration_since(Instant::now())` returns zero and the grace-period wait is silently disabled (early termination at quorum). A NaN value makes the subsequent `timeout(...)` duration invalid. The CLI/config path supplies this value from user input, so no constructor-time check exists.",
+          "suggestion": "Validate `grace_period` at the entry point (or in the config/CLI parser): reject NaN/negative/non-finite values, or clamp to [0, some_max]. Prefer a type that cannot represent invalid ratios, or at minimum an explicit debug_assert plus documented contract.",
+          "group": "g3",
+          "source": "llm",
+          "anchor_status": "hunk",
+          "anchored_line": 179
+        },
+        {
+          "file": "linera-client/src/client_options.rs",
+          "line": 160,
+          "existing_code": "    /// An additional delay, after reaching a quorum, to wait for additional validator signatures,\n    /// as a fraction of time taken to reach quorum.\n    #[arg(long, default_value_t = DEFAULT_GRACE_PERIOD)]\n    pub grace_period: f64,",
+          "level": "HIGH",
+          "category": "correctness",
+          "type_detail": "unvalidated user-supplied f64 ratio flows into timing computation",
+          "confidence": 0.85,
+          "description": "`grace_period` is exposed as a raw CLI `f64` and forwarded unchanged through `ClientContext::new` (options.grace_period) into the client/updater, where it is used as a timing multiplier (`Instant::now() + start_time.elapsed().mul_f64(grace_period)`). There is no validation at parse or construction time: a negative or NaN value (`--grace-period NaN`, `--grace-period -1`) makes `mul_f64` return NaN / a past instant, so the grace window becomes meaningless or the extra-wait path misbehaves, and an excessively large value (e.g. `1e12`) blocks certificate/vote collection for an effectively unbounded time. This is the same unvalidated-ratio pattern that has already been flagged on this code path and it re-appears here at the option definition.",
+          "suggestion": "Validate the value when parsing/converting the option: reject NaN, infinities and negatives, and clamp or reject absurdly large values (e.g. require `0.0 <= grace_period <= some_max`); expose a dedicated value parser or a `Result`-returning constructor so an invalid ratio fails fast instead of silently degrading timing behaviour.",
+          "group": "g1",
+          "source": "llm",
+          "anchor_status": "hunk",
+          "anchored_line": 160
+        },
+        {
+          "file": "linera-client/src/client_context.rs",
+          "line": 223,
+          "existing_code": "            NonZeroUsize::new(20).expect(\"Chain worker limit should not be zero\"),\n            DEFAULT_GRACE_PERIOD,",
+          "level": "MEDIUM",
+          "category": "test-gap",
+          "type_detail": "test helper hardcodes default, production value not exercised",
+          "confidence": 0.7,
+          "description": "`new_test_client_context` hard-codes `DEFAULT_GRACE_PERIOD` for the newly added client/updater parameter, while the production path takes the value from user/CLI options (`options.grace_period`). Consequently test code never exercises a non-default grace period (e.g. 0 or a large ratio), so regressions in the grace-period logic (zero denominator/`elapsed ≈ 0`, negative, NaN) remain uncovered — the same test-gap that was already reported for the grace-period wiring.",
+          "suggestion": "Add a test helper/overload that accepts an explicit `grace_period` (or set it from the options struct) and add at least one test that drives a non-default value (e.g. 0.0 and a large ratio) through `communicate_with_quorum`, asserting the expected early-stop/late-stop behaviour.",
+          "group": "g1",
+          "source": "llm",
+          "anchor_status": "fulltext",
+          "anchored_line": 223
+        },
+        {
+          "file": "linera-client/src/unit_tests/chain_listener.rs",
+          "line": 137,
+          "existing_code": "            DEFAULT_GRACE_PERIOD,\n        )),",
+          "level": "LOW",
+          "category": "test-gap",
+          "type_detail": "test passes default constant instead of exercising production-supplied value",
+          "confidence": 0.4,
+          "description": "The test constructs Client::new with the compile-time constant DEFAULT_GRACE_PERIOD rather than a value that flows through the production path (CLI/config -> ClientOptions/ChainClientOptions -> Client::new). This means the grace-period value used at runtime is still not covered by any test that varies it, so a regression where the user-supplied ratio is ignored or mis-forwarded would not be caught here. This mirrors the previously reported gap that test helpers hard-code DEFAULT_GRACE_PERIOD.",
+          "suggestion": "Consider parameterizing the test (or adding a second test) to pass a non-default grace period and assert it is stored in the resulting Client/ChainClientOptions, so the wiring from configuration to Client::new is actually exercised.",
+          "group": "g2",
+          "source": "llm",
+          "anchor_status": "hunk",
+          "anchored_line": 137
+        },
+        {
+          "file": "linera-core/src/client/mod.rs",
+          "line": 474,
+          "existing_code": "    /// An additional delay, after reaching a quorum, to wait for additional validator signatures,\n    /// as a fraction of time taken to reach quorum.\n    pub grace_period: f64,",
+          "level": "MEDIUM",
+          "category": "correctness",
+          "type_detail": "missing input validation of ratio used as sleep multiplier",
+          "confidence": 0.55,
+          "description": "ChainClientOptions::grace_period is a raw f64 supplied by the CLI (linera-client/src/client_options.rs:163, parsed by clap with default DEFAULT_GRACE_PERIOD) and copied verbatim into ClientOptions (client/mod.rs:275), then forwarded repeatedly as an unvalidated multiplier into communicate_with_quorum (lines 1123/1159/1530/1688). A negative value, NaN or +inf is accepted: the grace computation in updater.rs multiplies the elapsed quorum time by this factor, so a negative/NaN value silently disables the grace period while a very large value can stretch the client's wait unboundedly. No bounds check exists at construction time.",
+          "suggestion": "Validate grace_period once at ClientOptions/Client construction (reject NaN, negative and unreasonably large values, e.g. clamp to [0, 10]) and surface a clear error instead of propagating an arbitrary ratio into the quorum-wait computation.",
+          "group": "g4",
+          "source": "llm",
+          "anchor_status": "hunk",
+          "anchored_line": 474
+        },
+        {
+          "file": "linera-core/src/unit_tests/test_utils.rs",
+          "line": 843,
+          "existing_code": "            NonZeroUsize::new(20).expect(\"Chain worker limit should not be zero\"),\n            DEFAULT_GRACE_PERIOD,",
+          "level": "LOW",
+          "category": "test-gap",
+          "type_detail": "test helper hard-codes the default value",
+          "confidence": 0.5,
+          "description": "The shared test helper `create_chain_client` now passes the compile-time constant `DEFAULT_GRACE_PERIOD` into `builder.create_chain_client(...)`. This means the new, user/CLI-supplied `grace_period` plumbing (ClientOptions / ChainClientOptions -> updater::communicate_with_quorum) is never exercised by tests with a non-default value: the very code path under test here (scoring/early-exit timing that depends on `grace_period`) keeps being run with the default, so regressions in the option wiring or in non-default ratio handling cannot be detected. This is the same pattern already recorded for `linera-client/src/unit_tests/chain_listener.rs` and the client-context test helpers.",
+          "suggestion": "Add at least one test that constructs a chain client with a non-default (e.g. 0.0 or a large) `grace_period` and asserts the observable behaviour, or thread a parameter into this helper instead of the constant so call sites can vary it.",
+          "group": "g5",
+          "source": "llm",
+          "anchor_status": "fulltext",
+          "anchored_line": 843
+        },
+        {
+          "file": "linera-service/src/linera/main.rs",
+          "line": 1249,
+          "existing_code": "            NonZeroUsize::new(20).expect(\"Chain worker limit should not be zero\"),\n            DEFAULT_GRACE_PERIOD,",
+          "level": "LOW",
+          "category": "correctness",
+          "type_detail": "hard-coded default + magic number (20) for chain worker limit",
+          "confidence": 0.55,
+          "description": "The temporary client created in linera-service's Job::... now passes the compile-time constant DEFAULT_GRACE_PERIOD (0.2), so the user/CLI-supplied grace_period option (linera-client/src/client_options.rs, --grace-period) is ignored for this code path. This is the same pattern flagged in earlier rounds for the test helpers: production code that constructs a Client directly must forward the configured grace_period, otherwise the CLI flag silently has no effect for the parent-chain fetch and any value the user tuned (e.g. to tolerate slow validators) is lost. The neighbouring ChainClientOptions value is also reached at line ~1247 via hard-coded ChainClientOptions::default()-style arguments (the magic literal 20), which further indicates the client options are not plumbed through here.",
+          "suggestion": "Propagate the resolved grace_period (e.g. from the Job's ClientOptions/ChainClientOptions) instead of the constant, so the --grace-period CLI value applies to this temporary client as well.",
+          "group": "g6",
+          "source": "llm",
+          "anchor_status": "fulltext",
+          "anchored_line": 1249
+        }
+      ]
+    },
+    {
+      "url": "https://github.com/juspay/hyperswitch/pull/7353",
+      "lang": "Rust",
+      "stats": {
+        "expected_notes": 8,
+        "generated_notes": 0,
+        "line_match_count": 0,
+        "semantic_match_count": 0,
+        "line_match_rate": 0.0,
+        "semantic_match_rate": 0.0,
+        "line_recall_rate": 0.0,
+        "semantic_recall_rate": 0.0
+      },
+      "elapsed_s": 162.8,
+      "findings": []
+    },
+    {
+      "url": "https://github.com/cline/cline/pull/1808",
+      "lang": "TypeScript",
+      "stats": {
+        "expected_notes": 3,
+        "generated_notes": 1,
+        "line_match_count": 0,
+        "semantic_match_count": 0,
+        "line_match_rate": 0.0,
+        "semantic_match_rate": 0.0,
+        "line_recall_rate": 0.0,
+        "semantic_recall_rate": 0.0
+      },
+      "elapsed_s": 61.0,
+      "findings": [
+        {
+          "file": "src/api/providers/openai.ts",
+          "line": 20,
+          "existing_code": "\t\t\tthis.options.azureApiVersion ||\n\t\t\t(this.options.openAiBaseUrl?.toLowerCase().includes(\"azure.com\") &&\n\t\t\t\t!this.options.openAiModelId?.toLowerCase().includes(\"deepseek\"))",
+          "level": "HIGH",
+          "category": "correctness",
+          "type_detail": "operator precedence / short-circuit defeats new guard",
+          "confidence": 0.8,
+          "description": "The DeepSeek guard is ANDed only with the URL-based Azure detection, so when `azureApiVersion` is set (the very case the surrounding comment calls the reliable way to detect Azure) the `||` short-circuits to true and the `!includes(\"deepseek\")` check is never evaluated. A user with an Azure DeepSeek deployment configured via the \"Set Azure API version\" checkbox still gets an `AzureOpenAI` client, so the advertised Azure DeepSeek support does not work in that configuration.",
+          "suggestion": "Apply the DeepSeek exclusion to the whole Azure decision, e.g. compute `const isDeepseek = this.options.openAiModelId?.toLowerCase().includes(\"deepseek\") ?? false` and then `if (!isDeepseek && (this.options.azureApiVersion || this.options.openAiBaseUrl?.toLowerCase().includes(\"azure.com\")))`.",
+          "group": "g0",
+          "source": "llm",
+          "anchor_status": "hunk",
+          "anchored_line": 20
+        }
+      ]
+    },
+    {
+      "url": "https://github.com/cline/cline/pull/5177",
+      "lang": "TypeScript",
+      "stats": {
+        "expected_notes": 2,
+        "generated_notes": 1,
+        "line_match_count": 1,
+        "semantic_match_count": 0,
+        "line_match_rate": 1.0,
+        "semantic_match_rate": 0.0,
+        "line_recall_rate": 0.5,
+        "semantic_recall_rate": 0.0
+      },
+      "elapsed_s": 112.7,
+      "findings": [
+        {
+          "file": "src/core/task/index.ts",
+          "line": 1322,
+          "existing_code": "\t\t\t\tthis.checkpointTracker.commit().then(async (commitHash) => {\n\t\t\t\t\tif (commitHash) {\n\t\t\t\t\t\tconst lastCheckpointMessageIndex = findLastIndex(\n\t\t\t\t\t\t\tthis.messageStateHandler.getClineMessages(),\n\t\t\t\t\t\t\t(m) => m.say === \"checkpoint_created\",\n\t\t\t\t\t\t)\n\t\t\t\t\t\tif (lastCheckpointMessageIndex !== -1) {\n\t\t\t\t\t\t\tawait this.messageStateHandler.updateClineMessage(lastCheckpointMessageIndex, {\n\t\t\t\t\t\t\t\tlastCheckpointHash: commitHash,\n\t\t\t\t\t\t\t})\n\t\t\t\t\t\t}\n\t\t\t\t\t}\n\t\t\t\t})",
+          "level": "MEDIUM",
+          "category": "error-handling",
+          "type_detail": "unhandled promise rejection",
+          "confidence": 0.6,
+          "description": "The fire-and-forget `this.checkpointTracker.commit().then(...)` promise is not returned/awaited and has no `.catch()`. Any rejection of `commit()` (or of `updateClineMessage`, which throws on invalid index / can reject on save failure) becomes an unhandled promise rejection, silently losing the checkpoint hash association. Previously the whole block ran inside a try (and the surrounding flow had its own error handling), so failures were at least surfaced to the caller.",
+          "suggestion": "Capture the promise and attach a `.catch(err => console.error(...))` (or wrap in an async IIFE with try/catch), and consider tracking it so that task cleanup/abort can await in-flight checkpoint commits.",
+          "group": "g0",
+          "source": "llm",
+          "anchor_status": "fulltext",
+          "anchored_line": 1322
+        }
+      ]
+    },
+    {
+      "url": "https://github.com/immich-app/immich/pull/14874",
+      "lang": "TypeScript",
+      "stats": {
+        "expected_notes": 5,
+        "generated_notes": 2,
+        "line_match_count": 1,
+        "semantic_match_count": 0,
+        "line_match_rate": 0.5,
+        "semantic_match_rate": 0.0,
+        "line_recall_rate": 0.2,
+        "semantic_recall_rate": 0.0
+      },
+      "elapsed_s": 148.6,
+      "findings": [
+        {
+          "file": "server/src/services/metadata.service.ts",
+          "line": 458,
+          "existing_code": "          fileCreatedAt: dates.dateTimeOriginal,\n          fileModifiedAt: dates.modifyDate,\n          localDateTime: dates.localDateTime,",
+          "level": "MEDIUM",
+          "category": "correctness",
+          "type_detail": "semantic change of persisted field",
+          "confidence": 0.4,
+          "description": "For motion assets, fileCreatedAt is now set from dates.dateTimeOriginal, which for the no-exif fallback path is the earliest of fileCreatedAt/fileModifiedAt (previously it was asset.fileCreatedAt ?? asset.createdAt). Note that dates.modifyDate is exifTags.ModifyDate ?? asset.fileModifiedAt while dateTimeOriginal may be the earliest timestamp, so fileCreatedAt can end up later or earlier than the source asset's real creation time even though the video was embedded in the same photo. This changes persisted semantics (and ordering in the timeline) beyond the stated scope of 'fall back to earliest date'.",
+          "suggestion": "Confirm the intended semantics: if only the missing-exif fallback should change, keep fileCreatedAt from asset.fileCreatedAt for motion assets, or explicitly document/test that motion-part fileCreatedAt must equal the still-image dateTimeOriginal.",
+          "group": "g0",
+          "source": "llm",
+          "anchor_status": "hunk",
+          "anchored_line": 458
+        },
+        {
+          "file": "server/src/services/metadata.service.ts",
+          "line": 595,
+          "existing_code": "      const earliestDate = this.earliestDate(asset.fileModifiedAt, asset.fileCreatedAt);\n      dateTimeOriginal = earliestDate;\n      localDateTime = earliestDate;",
+          "level": "MEDIUM",
+          "category": "correctness",
+          "type_detail": "nullable field in Math.min",
+          "confidence": 0.5,
+          "description": "earliestDate(asset.fileModifiedAt, asset.fileCreatedAt) is called with possibly null/undefined dates. If a column is nullable in DB, valueOf() on null/undefined throws TypeError (or yields NaN), and dateTimeOriginal/localDateTime become Invalid Date, which then flows into upsertExif and assetRepository.update, corrupting the asset date. The previous code used asset.fileCreatedAt directly, so the failure mode changed from 'null date' to 'crash/Invalid Date'.",
+          "suggestion": "Guarantee non-null inputs: fall back when either side is missing, e.g. build the candidate list ([fileModifiedAt, fileCreatedAt, createdAt].filter(Boolean)) and take Math.min over available values, or make earliestDate accept (Date | null) and ignore nullish inputs. Also assert Invalid Date protection (Number.isNaN(date.getTime())) before writing.",
+          "group": "g0",
+          "source": "llm",
+          "anchor_status": "hunk",
+          "anchored_line": 595
+        }
+      ]
+    },
+    {
+      "url": "https://github.com/cline/cline/pull/2347",
+      "lang": "TypeScript",
+      "stats": {
+        "expected_notes": 9,
+        "generated_notes": 5,
+        "line_match_count": 2,
+        "semantic_match_count": 0,
+        "line_match_rate": 0.4,
+        "semantic_match_rate": 0.0,
+        "line_recall_rate": 0.222,
+        "semantic_recall_rate": 0.0
+      },
+      "elapsed_s": 68.6,
+      "findings": [
+        {
+          "file": "src/integrations/misc/extract-text.ts",
+          "line": 7,
+          "existing_code": "import { getFileSizeInKB } from \"../../utils/fs\"",
+          "level": "LOW",
+          "category": "other",
+          "type_detail": "unused import",
+          "confidence": 0.9,
+          "description": "`getFileSizeInKB` is imported but no longer called anywhere in the file (the size check was replaced by `fileBuffer.byteLength > 300 * 1024`). Dead import; will trip no-unused-vars linting.",
+          "suggestion": "Remove the unused import.",
+          "group": "g0",
+          "source": "llm",
+          "anchor_status": "fulltext",
+          "anchored_line": 7
+        },
+        {
+          "file": "src/integrations/misc/extract-text.ts",
+          "line": 11,
+          "existing_code": "export async function detectEncoding(fileBuffer: Buffer, fileExtension?: string): Promise<string> {",
+          "level": "MEDIUM",
+          "category": "test-gap",
+          "type_detail": "no tests for new encoding helper",
+          "confidence": 0.55,
+          "description": "A new exported helper `detectEncoding` centralises encoding logic for both file reading and diff editing, but no test file references it (code_search for `detectEncoding`/`extract-text` in test globs returns nothing). The two branches that matter most — a genuine non-UTF-8 file (e.g. Shift-JIS/latin1) decoding correctly, and a binary buffer being rejected — are untested, which is why the null-encoding and binary-bypass regressions above can slip through.",
+          "suggestion": "Add unit tests over Buffer fixtures: UTF-8, latin1, Shift-JIS, and a binary blob, asserting both the detected encoding and the decoded/throw outcome.",
+          "group": "g0",
+          "source": "llm",
+          "anchor_status": "hunk",
+          "anchored_line": 11
+        },
+        {
+          "file": "src/integrations/misc/extract-text.ts",
+          "line": 12,
+          "existing_code": "\tconst detected = chardet.detect(fileBuffer)\n\tif (typeof detected === \"string\") {\n\t\treturn detected\n\t} else if (detected && (detected as any).encoding) {",
+          "level": "HIGH",
+          "category": "correctness",
+          "type_detail": "wrong API return type / dead branch / null-as-encoding",
+          "confidence": 0.75,
+          "description": "jschardet.detect() never returns a string, it returns { encoding: string | null, confidence: number }. The `typeof detected === \"string\"` branch is dead code, and the object branch returns `(detected as any).encoding` which is `null` whenever confidence is too low to decide. detectEncoding is typed `Promise<string>` but can actually return `null`, which is then passed straight to `iconv.decode(fileBuffer, null)`.",
+          "suggestion": "Drop the string branch and guard against null/empty encoding: `const detected = chardet.detect(fileBuffer); if (detected?.encoding) return detected.encoding; ...` so the low-confidence case falls through to the binary check / 'utf8' default instead of returning null.",
+          "group": "g0",
+          "source": "llm",
+          "anchor_status": "hunk",
+          "anchored_line": 12
+        },
+        {
+          "file": "src/integrations/misc/extract-text.ts",
+          "line": 47,
+          "existing_code": "\t\t\tconst encoding = await detectEncoding(fileBuffer, fileExtension)\n\t\t\treturn iconv.decode(fileBuffer, encoding)",
+          "level": "HIGH",
+          "category": "correctness",
+          "type_detail": "binary-file guard bypass / garbled text regression",
+          "confidence": 0.6,
+          "description": "Previously every non-pdf/docx/ipynb file was guarded by `isBinaryFile(filePath)` before being read as text. Now `isBinaryFile` is only consulted inside detectEncoding, and only when chardet fails to detect *and* an extension is supplied. Any binary file whose bytes happen to look like text (many binaries are detected as 'ISO-8859-1'/'windows-1252' by chardet) will now be iconv-decoded and returned as garbage text instead of being rejected, i.e. the 'binary misclassification' the changeset claims to fix is actually widened.",
+          "suggestion": "Keep an unconditional binary check for the default branch (call isBinaryFile before decoding regardless of whether chardet produced an encoding), or reject when chardet confidence is low and the buffer is binary.",
+          "group": "g0",
+          "source": "llm",
+          "anchor_status": "hunk",
+          "anchored_line": 47
+        },
+        {
+          "file": "src/integrations/editor/DiffViewProvider.ts",
+          "line": 50,
+          "existing_code": "\t\t\tthis.fileEncoding = await detectEncoding(fileBuffer)\n\t\t\tthis.originalContent = iconv.decode(fileBuffer, this.fileEncoding)",
+          "level": "HIGH",
+          "category": "correctness",
+          "type_detail": "detected encoding never used for write-back / file corruption",
+          "confidence": 0.7,
+          "description": "`fileEncoding` is detected and stored but is never read anywhere else in the class (no other reference found). Decoding a non-UTF-8 file with its detected encoding fixes the in-editor view, but the final file is still persisted by VS Code as UTF-8 (saveChanges reads/writes via the editor document). So editing a latin1/Shift-JIS file will silently re-encode it as UTF-8 — the exact 'garbled text' bug this changeset targets, now with data loss on save.",
+          "suggestion": "Either use `this.fileEncoding` when writing the file back (encode with iconv before/after save) or explicitly acknowledge and document that the file is intentionally converted to UTF-8; don't detect and then drop the value.",
+          "group": "g0",
+          "source": "llm",
+          "anchor_status": "hunk",
+          "anchored_line": 50
+        }
+      ]
+    }
+  ],
+  "negative_results": [
+    {
+      "url": "https://github.com/lvgl/lvgl/pull/8129",
+      "lang": "C",
+      "findings": 3,
+      "elapsed_s": 99.1
+    },
+    {
+      "url": "https://github.com/valkey-io/valkey/pull/2141",
+      "lang": "C",
+      "findings": 0,
+      "elapsed_s": 31.7
+    },
+    {
+      "url": "https://github.com/libsdl-org/SDL/pull/12964",
+      "lang": "C",
+      "findings": 3,
+      "elapsed_s": 72.7
+    },
+    {
+      "url": "https://github.com/dotnet/aspnetcore/pull/62734",
+      "lang": "C#",
+      "findings": 1,
+      "elapsed_s": 63.2
+    },
+    {
+      "url": "https://github.com/microsoft/semantic-kernel/pull/11361",
+      "lang": "C#",
+      "findings": 2,
+      "elapsed_s": 47.8
+    },
+    {
+      "url": "https://github.com/PowerShell/PowerShell/pull/24910",
+      "lang": "C#",
+      "findings": 3,
+      "elapsed_s": 60.6
+    },
+    {
+      "url": "https://github.com/opencv/opencv/pull/26815",
+      "lang": "C++",
+      "findings": 1,
+      "elapsed_s": 35.8
+    },
+    {
+      "url": "https://github.com/ClickHouse/ClickHouse/pull/85266",
+      "lang": "C++",
+      "findings": 1,
+      "elapsed_s": 96.5
+    },
+    {
+      "url": "https://github.com/opencv/opencv/pull/27185",
+      "lang": "C++",
+      "findings": 0,
+      "elapsed_s": 80.4
+    },
+    {
+      "url": "https://github.com/ollama/ollama/pull/8938",
+      "lang": "Go",
+      "findings": 2,
+      "elapsed_s": 46.9
+    },
+    {
+      "url": "https://github.com/ollama/ollama/pull/12185",
+      "lang": "Go",
+      "findings": 12,
+      "elapsed_s": 416.1
+    },
+    {
+      "url": "https://github.com/microsoft/typescript-go/pull/1446",
+      "lang": "Go",
+      "findings": 4,
+      "elapsed_s": 119.9
+    },
+    {
+      "url": "https://github.com/keycloak/keycloak/pull/41672",
+      "lang": "Java",
+      "findings": 1,
+      "elapsed_s": 62.5
+    },
+    {
+      "url": "https://github.com/dbeaver/dbeaver/pull/37564",
+      "lang": "Java",
+      "findings": 2,
+      "elapsed_s": 157.7
+    },
+    {
+      "url": "https://github.com/elastic/elasticsearch/pull/123744",
+      "lang": "Java",
+      "findings": 4,
+      "elapsed_s": 108.9
+    },
+    {
+      "url": "https://github.com/mrdoob/three.js/pull/30750",
+      "lang": "JavaScript",
+      "findings": 2,
+      "elapsed_s": 116.8
+    },
+    {
+      "url": "https://github.com/nodejs/node/pull/56185",
+      "lang": "JavaScript",
+      "findings": 7,
+      "elapsed_s": 237.9
+    },
+    {
+      "url": "https://github.com/sveltejs/svelte/pull/15250",
+      "lang": "JavaScript",
+      "findings": 8,
+      "elapsed_s": 180.1
+    },
+    {
+      "url": "https://github.com/symfony/symfony/pull/60956",
+      "lang": "PHP",
+      "findings": 0,
+      "elapsed_s": 147.7
+    },
+    {
+      "url": "https://github.com/filamentphp/filament/pull/15217",
+      "lang": "PHP",
+      "findings": 1,
+      "elapsed_s": 153.7
+    },
+    {
+      "url": "https://github.com/symfony/symfony/pull/61601",
+      "lang": "PHP",
+      "findings": 1,
+      "elapsed_s": 151.2
+    },
+    {
+      "url": "https://github.com/vllm-project/vllm/pull/24425",
+      "lang": "Python",
+      "findings": 3,
+      "elapsed_s": 57.5
+    },
+    {
+      "url": "https://github.com/vllm-project/vllm/pull/19231",
+      "lang": "Python",
+      "findings": 2,
+      "elapsed_s": 140.0
+    },
+    {
+      "url": "https://github.com/langflow-ai/langflow/pull/5896",
+      "lang": "Python",
+      "findings": 2,
+      "elapsed_s": 157.9
+    },
+    {
+      "url": "https://github.com/linera-io/linera-protocol/pull/3151",
+      "lang": "Rust",
+      "findings": 0,
+      "elapsed_s": 24.5
+    },
+    {
+      "url": "https://github.com/linera-io/linera-protocol/pull/4639",
+      "lang": "Rust",
+      "findings": 3,
+      "elapsed_s": 64.3
+    },
+    {
+      "url": "https://github.com/linera-io/linera-protocol/pull/3075",
+      "lang": "Rust",
+      "findings": 9,
+      "elapsed_s": 228.6
+    },
+    {
+      "url": "https://github.com/cline/cline/pull/1808",
+      "lang": "TypeScript",
+      "findings": 1,
+      "elapsed_s": 28.7
+    },
+    {
+      "url": "https://github.com/immich-app/immich/pull/14874",
+      "lang": "TypeScript",
+      "findings": 2,
+      "elapsed_s": 91.6
+    },
+    {
+      "url": "https://github.com/cline/cline/pull/2347",
+      "lang": "TypeScript",
+      "findings": 5,
+      "elapsed_s": 53.2
+    }
+  ]
+}

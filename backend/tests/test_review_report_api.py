@@ -1,3 +1,7 @@
+"""报告详情 API 测试 —— 用内存 store 播种任务状态，TestClient 验证响应。"""
+
+import asyncio
+
 from fastapi.testclient import TestClient
 
 from app.main import app
@@ -11,10 +15,10 @@ from app.schemas.review import (
     ReviewReportStats,
 )
 from app.services.review_job_service import review_job_service
-from app.services.review_job_store import ReviewJobStore
+from tests.memory_store import MemoryReviewJobStore
 
 
-def install_store(store: ReviewJobStore):
+def install_store(store: MemoryReviewJobStore):
     original_store = review_job_service._store
     review_job_service._store = store
     return original_store
@@ -32,29 +36,42 @@ def _make_report() -> ReviewReport:
     )
 
 
+def _seed_detail_job(job_id: str, pr_number: int, title: str) -> MemoryReviewJobStore:
+    """播种一个 running 任务（内存 store 与 TestClient 各自的事件循环无关联，纯字典操作安全）。"""
+    store = MemoryReviewJobStore()
+
+    async def seed() -> None:
+        await store.create(ReviewJob(
+            job_id=job_id,
+            pr_url=f"https://github.com/example/repo/pull/{pr_number}",
+        ))
+        await store.save_pr_info(job_id, {
+            "owner": "example",
+            "repo": "repo",
+            "pull_number": pr_number,
+            "title": title,
+            "author": "alice",
+            "state": "open",
+            "base": {"ref": "main", "sha": "abc"},
+            "head": {"ref": "fix/login", "sha": "def"},
+            "changed_files": 3,
+            "additions": 20,
+            "deletions": 5,
+            "html_url": f"https://github.com/example/repo/pull/{pr_number}",
+        })
+        await store.update_status(job_id, ReviewJobStatus.running)
+
+    asyncio.run(seed())
+    return store
+
+
 def test_detail_returns_full_report_for_completed_job() -> None:
-    store = ReviewJobStore()
-    job = store.create(ReviewJob(
-        job_id="rev_detail_1",
-        pr_url="https://github.com/example/repo/pull/10",
-    ))
-    store.save_pr_info(job.job_id, {
-        "owner": "example",
-        "repo": "repo",
-        "pull_number": 10,
-        "title": "Fix login bug",
-        "author": "alice",
-        "state": "open",
-        "base": {"ref": "main", "sha": "abc"},
-        "head": {"ref": "fix/login", "sha": "def"},
-        "changed_files": 3,
-        "additions": 20,
-        "deletions": 5,
-        "html_url": "https://github.com/example/repo/pull/10",
-    })
-    store.update_status(job.job_id, ReviewJobStatus.running)
-    report = _make_report()
-    store.update_status(job.job_id, ReviewJobStatus.completed, report=report)
+    store = _seed_detail_job("rev_detail_1", 10, "Fix login bug")
+
+    async def finish() -> None:
+        await store.update_status("rev_detail_1", ReviewJobStatus.completed, report=_make_report())
+
+    asyncio.run(finish())
 
     original_store = install_store(store)
     client = TestClient(app)
@@ -78,25 +95,7 @@ def test_detail_returns_full_report_for_completed_job() -> None:
 
 
 def test_detail_hydrates_missing_patch_for_completed_job() -> None:
-    store = ReviewJobStore()
-    job = store.create(ReviewJob(
-        job_id="rev_detail_patch",
-        pr_url="https://github.com/example/repo/pull/12",
-    ))
-    store.save_pr_info(job.job_id, {
-        "owner": "example",
-        "repo": "repo",
-        "pull_number": 12,
-        "title": "Update package",
-        "author": "alice",
-        "state": "open",
-        "base": {"ref": "main", "sha": "abc"},
-        "head": {"ref": "feature/pkg", "sha": "def"},
-        "changed_files": 1,
-        "additions": 1,
-        "deletions": 1,
-        "html_url": "https://github.com/example/repo/pull/12",
-    })
+    store = _seed_detail_job("rev_detail_patch", 12, "Update package")
     report = ReviewReport(
         summary="Patch is missing",
         risk_level="LOW",
@@ -114,8 +113,11 @@ def test_detail_hydrates_missing_patch_for_completed_job() -> None:
         findings=[],
         review_comment="## AI Review Summary",
     )
-    store.update_status(job.job_id, ReviewJobStatus.running)
-    store.update_status(job.job_id, ReviewJobStatus.completed, report=report)
+
+    async def finish() -> None:
+        await store.update_status("rev_detail_patch", ReviewJobStatus.completed, report=report)
+
+    asyncio.run(finish())
 
     class FakeGitHubClient:
         async def fetch_pull_request_files(self, pr_ref):
@@ -146,16 +148,15 @@ def test_detail_hydrates_missing_patch_for_completed_job() -> None:
 
 
 def test_detail_returns_progress_for_running_job() -> None:
-    store = ReviewJobStore()
-    job = store.create(ReviewJob(
-        job_id="rev_detail_2",
-        pr_url="https://github.com/example/repo/pull/11",
-    ))
-    store.update_status(job.job_id, ReviewJobStatus.running)
-    store.add_progress_event(
-        job.job_id,
-        {"type": "progress", "step": "DIFF_FILTER", "percent": 65, "message": "Diff 降噪已完成"},
-    )
+    store = _seed_detail_job("rev_detail_2", 11, "Fix")
+
+    async def add_event() -> None:
+        await store.add_progress_event(
+            "rev_detail_2",
+            {"type": "progress", "step": "DIFF_FILTER", "percent": 65, "message": "Diff 降噪已完成"},
+        )
+
+    asyncio.run(add_event())
 
     original_store = install_store(store)
     client = TestClient(app)
@@ -173,12 +174,12 @@ def test_detail_returns_progress_for_running_job() -> None:
 
 
 def test_detail_returns_error_for_failed_job() -> None:
-    store = ReviewJobStore()
-    job = store.create(ReviewJob(
-        job_id="rev_detail_3",
-        pr_url="https://github.com/example/repo/pull/404",
-    ))
-    store.update_status(job.job_id, ReviewJobStatus.failed, error_message="GitHub pull request was not found")
+    store = _seed_detail_job("rev_detail_3", 404, "Broken")
+
+    async def fail() -> None:
+        await store.update_status("rev_detail_3", ReviewJobStatus.failed, error_message="GitHub pull request was not found")
+
+    asyncio.run(fail())
 
     original_store = install_store(store)
     client = TestClient(app)
@@ -195,7 +196,7 @@ def test_detail_returns_error_for_failed_job() -> None:
 
 
 def test_detail_returns_404_for_missing_job() -> None:
-    store = ReviewJobStore()
+    store = MemoryReviewJobStore()
     original_store = install_store(store)
     client = TestClient(app)
     try:

@@ -19,7 +19,8 @@ const levelBorderColors: Record<string, string> = {
   HIGH: 'border-l-orange-500/40',
   MEDIUM: 'border-l-yellow-500/40',
   LOW: 'border-l-blue-500/40',
-  SUGGESTION: 'border-l-zinc-500/40',
+  WARNING: 'border-l-amber-500/40',
+  INFO: 'border-l-zinc-500/40',
 };
 
 export function FindingCard({ finding, expanded = false, onToggle, onJumpToDiff }: FindingCardProps) {

@@ -152,6 +152,12 @@ export function useReviewStream(jobId: string | undefined) {
       }
     });
 
+    eventSource.addEventListener('heartbeat', () => {
+      // 后端 LLM 阶段可能长时间无业务事件，命名心跳用于重置静默计时器
+      if (!mountedRef.current) return;
+      resetIdleTimer();
+    });
+
     eventSource.addEventListener('warning', (e: MessageEvent) => {
       if (!mountedRef.current) return;
       resetIdleTimer();

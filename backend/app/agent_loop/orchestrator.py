@@ -36,6 +36,7 @@ from app.graph.state import ReviewGraphState
 from app.models.review_job import ReviewJob
 from app.schemas.review import (
     ChangedFile,
+    ChangedSymbol,
     ReviewJobStatus,
     ReviewReport,
     ReviewReportStats,
@@ -174,7 +175,7 @@ class ReviewOrchestrator:
         await self._progress(job_id, "DIFF_PARSE", 55, "正在解析变更行")
         state = node_parse_diff(state, gc, st)
         await self._progress(job_id, "AST_CONTEXT", 60, "正在提取 AST 上下文")
-        state = node_ast_context(state, gc, st)
+        state = await node_ast_context(state, gc, st)
         if state.warnings:
             warnings.extend(state.warnings)
 
@@ -228,12 +229,23 @@ class ReviewOrchestrator:
             for f in included
         ]
 
+        # 变更符号来自 AST 提取结果（降级的文件级上下文没有 symbol，跳过）
+        changed_symbols = [
+            ChangedSymbol(
+                file=ctx["file"], symbol=ctx["symbol"], language=ctx.get("language", "unknown"),
+                start_line=ctx.get("start_line", 0), end_line=ctx.get("end_line", 0),
+                changed_lines=ctx.get("changed_lines", []), code=ctx.get("code"),
+            )
+            for ctx in snapshot.ast_contexts
+            if ctx.get("symbol")
+        ]
+
         report = ReviewReport(
             summary=finalized.report_output.summary,
             risk_level=finalized.report_output.risk_level,
             stats=ReviewReportStats(),
             changed_files=changed_files,
-            changed_symbols=[],
+            changed_symbols=changed_symbols,
             findings=finalized.report_output.findings,
             review_comment=finalized.report_output.review_comment,
         )

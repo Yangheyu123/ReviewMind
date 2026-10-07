@@ -115,3 +115,69 @@ def make_ref() -> GitHubPullRequestRef:
         pull_number=12,
         html_url="https://github.com/owner/repo/pull/12",
     )
+
+@pytest.mark.anyio
+async def test_fetch_pull_request_files_paginates_all_pages() -> None:
+    """P0#3 回归：files 接口必须跟随分页拉全量（旧实现单页 30 条截断大 PR）。"""
+    calls: list[str] = []
+
+    def make_file(i: int) -> dict:
+        return {
+            "filename": f"src/file_{i}.py",
+            "status": "modified",
+            "additions": 1,
+            "deletions": 0,
+            "patch": "@@ -1 +1 @@",
+        }
+
+    async def handler(request: httpx.Request) -> httpx.Response:
+        page = int(request.url.params.get("page", "1"))
+        per_page = int(request.url.params.get("per_page", "30"))
+        calls.append(f"page={page}")
+        assert per_page == 100
+        if page == 1:
+            return httpx.Response(200, json=[make_file(i) for i in range(100)])
+        if page == 2:
+            return httpx.Response(200, json=[make_file(i) for i in range(100, 130)])
+        return httpx.Response(200, json=[])
+
+    client = GitHubClient(client=httpx.AsyncClient(transport=httpx.MockTransport(handler), base_url="https://api.github.com"))
+    result = await client.fetch_pull_request_files(make_ref())
+
+    assert len(result) == 130
+    assert calls == ["page=1", "page=2"]  # 第 2 页不足 100 条 → 判定为末页，停止翻页
+
+
+@pytest.mark.anyio
+async def test_rate_limit_retries_then_succeeds() -> None:
+    """P0#3 回归：带 Retry-After 的 403 应退避重试，而非立即失败。"""
+    attempts = {"count": 0}
+
+    async def handler(_request: httpx.Request) -> httpx.Response:
+        attempts["count"] += 1
+        if attempts["count"] == 1:
+            return httpx.Response(
+                403,
+                json={"message": "rate limit"},
+                headers={"Retry-After": "0", "x-ratelimit-remaining": "0"},
+            )
+        return httpx.Response(
+            200,
+            json={
+                "title": "After retry",
+                "user": {"login": "alice"},
+                "state": "open",
+                "base": {"ref": "main", "sha": "b"},
+                "head": {"ref": "f", "sha": "h"},
+                "changed_files": 1,
+                "additions": 1,
+                "deletions": 1,
+                "html_url": "https://github.com/owner/repo/pull/12",
+            },
+        )
+
+    client = GitHubClient(client=httpx.AsyncClient(transport=httpx.MockTransport(handler), base_url="https://api.github.com"))
+    result = await client.fetch_pull_request(make_ref())
+
+    assert attempts["count"] == 2
+    assert result.title == "After retry"

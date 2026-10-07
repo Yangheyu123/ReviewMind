@@ -1,5 +1,6 @@
 import asyncio
 import json
+from datetime import UTC, datetime
 from collections.abc import AsyncIterator
 
 from fastapi import APIRouter, HTTPException, status
@@ -21,7 +22,7 @@ from app.schemas.review import (
 from app.services.github_client import GitHubClient, GitHubClientError
 from app.services.github_comment import GitHubCommentError, post_pr_comment
 from app.services.github_url_parser import GitHubPullRequestUrlError, parse_github_pr_url
-from app.models.review_job import _QUEUE_DONE
+from app.models.review_job import ReviewJob, _QUEUE_DONE
 from app.services.review_job_service import review_job_service
 from app.services.review_job_store import ReviewJobNotFoundError, event_queue_registry, review_job_store
 
@@ -181,7 +182,7 @@ async def stream_review_progress(job_id: str) -> StreamingResponse:
 
         # 如果任务已经结束或没有事件队列，直接发送 done 并退出
         if job.status in {"completed", "failed", "cancelled"} or event_queue is None:
-            done_data = _build_done_data(job_id, job.status, job.error_message)
+            done_data = _build_done_data(job_id, job.status, job.error_message, job=job)
             yield _format_sse("done", done_data)
             return
 
@@ -209,14 +210,16 @@ async def stream_review_progress(job_id: str) -> StreamingResponse:
                     yield _format_sse(event_type, data)
 
             except asyncio.TimeoutError:
-                # 超时 → 发送心跳注释
+                # 超时 → 发送命名心跳事件（SSE 注释行不会触发 EventSource 任何
+                # handler，前端 45s 静默计时器收不到信号会误判连接中断）
                 now = loop.time()
                 if now - last_heartbeat >= SSE_HEARTBEAT_SECONDS:
-                    yield ": heartbeat\n\n"
+                    yield _format_sse("heartbeat", {"ts": int(now * 1000)})
                     last_heartbeat = now
 
         # 循环结束 → 发送 done
         # 重新读取 job 状态（可能已被更新）
+        current_job = None
         try:
             current_job = await review_job_store.get(job_id)
             final_status = current_job.status
@@ -225,7 +228,7 @@ async def stream_review_progress(job_id: str) -> StreamingResponse:
             final_status = "unknown"
             error_msg = None
 
-        done_data = _build_done_data(job_id, final_status, error_msg)
+        done_data = _build_done_data(job_id, final_status, error_msg, job=current_job)
         yield _format_sse("done", done_data)
 
     return StreamingResponse(
@@ -239,12 +242,17 @@ async def stream_review_progress(job_id: str) -> StreamingResponse:
     )
 
 
-def _build_done_data(job_id: str, status: str, error_message: str | None = None) -> dict:
+def _build_done_data(job_id: str, status: str, error_message: str | None = None, job: ReviewJob | None = None) -> dict:
+    duration_ms: int | None = None
+    if job is not None and job.created_at is not None:
+        end = job.completed_at or datetime.now(UTC)
+        duration_ms = max(int((end - job.created_at).total_seconds() * 1000), 0)
     return {
         "job_id": job_id,
         "status": status,
         "report_url": f"/api/v1/review/jobs/{job_id}",
         "error_message": error_message,
+        "duration_ms": duration_ms,
     }
 
 

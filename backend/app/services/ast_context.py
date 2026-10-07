@@ -15,20 +15,23 @@ LANGUAGE_EXTENSIONS: dict[str, str] = {
 }
 
 # JS/TS 函数声明正则：function / async function / 箭头函数 / class method
+# 注意 1：行首空白只匹配 [ \t]，\s 会吞掉上一行的换行符导致 start_line 偏移一行
+# 注意 2：class method 分支用负向前瞻排除 if/for/while 等语句关键字（for 循环头长得像方法签名）
 _JS_TS_FUNC_RE = re.compile(
-    r"^\s*(?:(?:export\s+)?(?:default\s+)?(?:async\s+)?)?"
+    r"^[ \t]*(?:(?:export\s+)?(?:default\s+)?(?:async\s+)?)?"
     r"(?:function\s+(\w+)"
     r"|const\s+(\w+)\s*=\s*(?:async\s+)?(?:\([^)]*\)|[\w]+)\s*=>"
     r"|const\s+(\w+)\s*=\s*(?:async\s+)?function"
-    r"|(\w+)\s*\([^)]*\)\s*\{)",
+    r"|(?!(?:if|for|while|switch|catch|return|function)\b)(\w+)\s*\([^)]*\)\s*\{)",
     re.MULTILINE,
 )
 
 # Java 方法正则：[access] [static] Type methodName(...)
+# 类型字符类不含 \s（换成 空格+Tab），避免跨行匹配把 start_line 拖到上一行
 _JAVA_METHOD_RE = re.compile(
-    r"^\s*(?:(?:public|protected|private)\s+)?"
+    r"^[ \t]*(?:(?:public|protected|private)\s+)?"
     r"(?:static\s+)?"
-    r"(?:[\w<>\[\],\s]+?)\s+(\w+)\s*\([^)]*\)\s*\{",
+    r"(?:[\w<>\[\], \t]+?)\s+(\w+)\s*\([^)]*\)\s*\{",
     re.MULTILINE,
 )
 

@@ -186,6 +186,102 @@ class ReviewJobStore:
             await session.commit()
         return self._to_job(model)
 
+    async def save_llm_requests(self, job_id: str, records: list[dict]) -> int:
+        """LLM 请求明细落库（Phase 4 观测）。返回写入条数，失败降级为日志。"""
+        if not records:
+            return 0
+        try:
+            from app.models.db_models import LlmRequestLogModel
+            async with async_session() as session:
+                for rec in records:
+                    session.add(LlmRequestLogModel(
+                        job_id=rec.get("job_id") or job_id,
+                        group=str(rec.get("group", ""))[:64],
+                        phase=str(rec.get("phase", ""))[:32],
+                        model=str(rec.get("model", ""))[:128],
+                        protocol=str(rec.get("protocol", "openai"))[:16],
+                        prompt_tokens=int(rec.get("prompt_tokens", 0) or 0),
+                        completion_tokens=int(rec.get("completion_tokens", 0) or 0),
+                        total_tokens=int(rec.get("total_tokens", 0) or 0),
+                        latency_ms=int(rec.get("latency_ms", 0) or 0),
+                        status=str(rec.get("status", "ok"))[:16],
+                        error=rec.get("error") or None,
+                    ))
+                await session.commit()
+            return len(records)
+        except Exception:
+            logger.exception("[STORE] save_llm_requests failed (job=%s)", job_id)
+            return 0
+
+    async def save_review_memory(self, repo: str, findings: list[dict], min_chars: int = 10) -> int:
+        """审查记忆写入（Phase 2.5）。失败降级日志，返回写入条数。"""
+        from datetime import UTC, datetime
+        from app.models.db_models import ReviewMemoryModel
+        saved = 0
+        try:
+            async with async_session() as session:
+                for f in findings:
+                    desc = str(f.get("description") or "")
+                    if len(desc) < min_chars:
+                        continue
+                    session.add(ReviewMemoryModel(
+                        repo=repo,
+                        file=str(f.get("file") or "")[:1024],
+                        line=int(f.get("line") or 0),
+                        level=str(f.get("level") or "INFO").upper()[:16],
+                        category=str(f.get("category") or "other")[:32],
+                        type_detail=str(f.get("type_detail") or "")[:256] or None,
+                        description=desc,
+                        suggestion=str(f.get("suggestion") or "") or None,
+                        existing_code=str(f.get("existing_code") or "") or None,
+                        anchor_status=str(f.get("anchor_status") or "")[:16] or None,
+                        created_at=datetime.now(UTC),
+                    ))
+                    saved += 1
+                await session.commit()
+        except Exception:
+            logger.exception("[STORE] save_review_memory failed (repo=%s)", repo)
+            return 0
+        return saved
+
+    async def recall_review_memory(self, repo: str, changed_files: list[str], window_days: int = 180) -> list[dict]:
+        """按 repo + 变更文件路径召回历史发现（关键词级）。"""
+        from datetime import UTC, datetime, timedelta
+        from sqlalchemy import select
+        from app.models.db_models import ReviewMemoryModel
+        if not changed_files:
+            return []
+        cutoff = datetime.now(UTC) - timedelta(days=window_days)
+        # 目录级匹配：同仓库、文件路径前缀（目录）相同或文件名相同
+        names = {f.rsplit("/", 1)[-1] for f in changed_files if "/" in f}
+        dirs = {f.rsplit("/", 1)[0] for f in changed_files if "/" in f}
+        try:
+            async with async_session() as session:
+                result = await session.execute(
+                    select(ReviewMemoryModel).where(
+                        ReviewMemoryModel.repo == repo,
+                        ReviewMemoryModel.created_at >= cutoff,
+                    ).order_by(ReviewMemoryModel.created_at.desc()).limit(500)
+                )
+                models = result.scalars().all()
+        except Exception:
+            logger.exception("[STORE] recall_review_memory failed (repo=%s)", repo)
+            return []
+        out = []
+        for m in models:
+            m_name = m.file.rsplit("/", 1)[-1] if m.file and "/" in m.file else m.file
+            m_dir = m.file.rsplit("/", 1)[0] if m.file and "/" in m.file else ""
+            if m_name in names or (m_dir and m_dir in dirs):
+                out.append({
+                    "file": m.file, "line": m.line, "level": m.level,
+                    "category": m.category, "type_detail": m.type_detail,
+                    "description": m.description, "suggestion": m.suggestion,
+                    "existing_code": m.existing_code,
+                    "anchor_status": m.anchor_status,
+                    "created_at": m.created_at.isoformat() if m.created_at else "",
+                })
+        return out[:50]
+
     def _to_job(self, model: ReviewJobModel) -> ReviewJob:
         """将 ORM 模型转换为领域对象 ReviewJob。"""
         report = None

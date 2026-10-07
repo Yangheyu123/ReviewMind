@@ -58,16 +58,30 @@ class ReviewTaskRunner:
         task.add_done_callback(lambda _: self._cleanup(job.job_id))
 
     async def _execute(self, job_id: str, coro) -> Any:
-        """包装执行，确保异常被捕获并记录。"""
+        """包装执行，确保异常被捕获并记录。
+
+        注意：asyncio.CancelledError 继承自 BaseException，不会被这里吞掉，
+        cancel() 后任务会真正终止，pipeline 的 _finish 不再执行。
+        """
         try:
             return await coro
         except Exception:
             logger.exception("[TaskRunner] Pipeline execution failed for job=%s", job_id)
 
+    def cancel(self, job_id: str) -> bool:
+        """取消运行中的后台任务。
+
+        Returns:
+            True 表示存在运行中任务并已请求取消；False 表示该 job 当前没有后台任务。
+        """
+        task = self._running_tasks.get(job_id)
+        if task is None or task.done():
+            return False
+        task.cancel()
+        logger.info("[TaskRunner] Cancelled background task for job=%s", job_id)
+        return True
+
     def _cleanup(self, job_id: str) -> None:
         """任务完成后清理运行状态。"""
         self._running_job_ids.discard(job_id)
         self._running_tasks.pop(job_id, None)
-
-
-# 模块级单例 — store 在 app startup 时注入

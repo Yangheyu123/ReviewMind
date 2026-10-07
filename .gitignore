@@ -37,3 +37,6 @@ docs/review-pipeline-optimization.md
 *.jsonl
 docs/
 .VSCodeCounter/
+# 源码快照缓存（tarball 解压，体积巨大，永不入库）
+backend/data/
+data/

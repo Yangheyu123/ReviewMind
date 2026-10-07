@@ -12,6 +12,7 @@ def parse_diff_file(file: PullRequestFile) -> ParsedDiffFile:
             status=file.status,
             additions=file.additions,
             deletions=file.deletions,
+            patch=file.patch,
         )
 
     hunks: list[DiffHunk] = []
@@ -84,6 +85,7 @@ def parse_diff_file(file: PullRequestFile) -> ParsedDiffFile:
         changed_lines=_collect_changed_lines(hunks),
         deleted_lines=_collect_deleted_lines(hunks),
         hunks=hunks,
+        patch=file.patch,
     )
 
 
